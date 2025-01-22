@@ -1,0 +1,211 @@
+
+
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>http://localhost:4000/</id>
+  <title>Youssef Sammouda</title>
+  <subtitle>Hacker / Bug Bounty Hunter</subtitle>
+  <updated>2025-01-11T11:55:01+01:00</updated>
+  <author>
+    <name>Youssef Sammouda</name>
+    <uri>http://localhost:4000/</uri>
+  </author>
+  <link rel="self" type="application/atom+xml" href="http://localhost:4000/feed.xml"/>
+  <link rel="alternate" type="text/html" hreflang="en"
+    href="http://localhost:4000/"/>
+  <generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator>
+  <rights> © 2025 Youssef Sammouda </rights>
+  <icon>/assets/img/favicons/favicon.ico</icon>
+  <logo>/assets/img/favicons/favicon-96x96.png</logo>
+
+
+  
+  <entry>
+    <title>Account Takeover in Canvas Apps served in Comet due to failure in Cross-Window-Message Origin validation</title>
+    <link href="http://localhost:4000/posts/account-takeover-in-canvas-apps-served-in-comet-due-to-failure-in-cross-window-message-origin-validation/" rel="alternate" type="text/html" title="Account Takeover in Canvas Apps served in Comet due to failure in Cross-Window-Message Origin validation" />
+    <published>2023-01-29T14:04:55+01:00</published>
+  
+    <updated>2023-01-29T14:04:55+01:00</updated>
+  
+    <id>http://localhost:4000/posts/account-takeover-in-canvas-apps-served-in-comet-due-to-failure-in-cross-window-message-origin-validation/</id>
+    <content src="http://localhost:4000/posts/account-takeover-in-canvas-apps-served-in-comet-due-to-failure-in-cross-window-message-origin-validation/" />
+    <author>
+      <name>qw</name>
+    </author>
+
+  
+    
+    <category term="Uncategorized" />
+    
+  
+
+  
+    <summary>
+      
+
+
+
+
+
+      This bug could allow a malicious actor to takeover Facebook/Meta accounts if the user decided to play a Canvas game.
+
+The new Canvas on Comet is using Compat to display dialogs( eg OAuth dialogs ) in separate iframes, the process of displaying a dialog is to first receive a message of the type of the dialog ( like oauth ) and then create an iframe hosting apps.facebook.com/compat, then that ifr...
+    </summary>
+  
+
+  </entry>
+
+  
+  <entry>
+    <title>DOM-XSS in Instant Games due to improper verification of supplied URLs</title>
+    <link href="http://localhost:4000/posts/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls/" rel="alternate" type="text/html" title="DOM-XSS in Instant Games due to improper verification of supplied URLs" />
+    <published>2023-01-29T14:04:43+01:00</published>
+  
+    <updated>2023-01-29T14:04:43+01:00</updated>
+  
+    <id>http://localhost:4000/posts/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls/</id>
+    <content src="http://localhost:4000/posts/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls/" />
+    <author>
+      <name>qw</name>
+    </author>
+
+  
+    
+    <category term="Uncategorized" />
+    
+  
+
+  
+    <summary>
+      
+
+
+
+
+
+      This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the “goURIOnWindow” Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS.
+
+Details
+
+The function inside goURIOnWindow module has this...
+    </summary>
+  
+
+  </entry>
+
+  
+  <entry>
+    <title>Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing</title>
+    <link href="http://localhost:4000/posts/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing/" rel="alternate" type="text/html" title="Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing" />
+    <published>2023-01-29T14:04:37+01:00</published>
+  
+    <updated>2023-01-29T14:04:37+01:00</updated>
+  
+    <id>http://localhost:4000/posts/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing/</id>
+    <content src="http://localhost:4000/posts/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing/" />
+    <author>
+      <name>qw</name>
+    </author>
+
+  
+    
+    <category term="Uncategorized" />
+    
+  
+
+  
+    <summary>
+      
+
+
+
+
+
+      A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts.
+
+This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means...
+    </summary>
+  
+
+  </entry>
+
+  
+  <entry>
+    <title>Multiple bugs chained to takeover Facebook Accounts which uses Gmail.</title>
+    <link href="http://localhost:4000/posts/bug-chain-to-achieve-facebook-account-takeover-of-users-signed-up-with-gmail-accounts/" rel="alternate" type="text/html" title="Multiple bugs chained to takeover Facebook Accounts which uses Gmail." />
+    <published>2022-05-14T17:32:44+02:00</published>
+  
+    <updated>2022-05-14T17:32:44+02:00</updated>
+  
+    <id>http://localhost:4000/posts/bug-chain-to-achieve-facebook-account-takeover-of-users-signed-up-with-gmail-accounts/</id>
+    <content src="http://localhost:4000/posts/bug-chain-to-achieve-facebook-account-takeover-of-users-signed-up-with-gmail-accounts/" />
+    <author>
+      <name>qw</name>
+    </author>
+
+  
+    
+    <category term="Uncategorized" />
+    
+  
+
+  
+    <summary>
+      
+
+
+
+
+
+      Description
+
+This bug could allow a malicious actor to takeover a Facebook account after stealing a Gmail OAuth id_token/code used to login to Facebook. This happened due to multiple bugs that were chained. Main ones were an intended-by-design XSS in a Facebook sandbox domain and a bug that caused the sharing of sensitive data with this sandbox domain.
+
+Details
+
+The exploitation of the bugs was...
+    </summary>
+  
+
+  </entry>
+
+  
+  <entry>
+    <title>More secure Facebook Canvas Part 2: More Account Takeovers</title>
+    <link href="http://localhost:4000/posts/more-secure-facebook-canvas-part-2/" rel="alternate" type="text/html" title="More secure Facebook Canvas Part 2: More Account Takeovers" />
+    <published>2022-03-04T16:43:51+01:00</published>
+  
+    <updated>2022-03-04T16:43:51+01:00</updated>
+  
+    <id>http://localhost:4000/posts/more-secure-facebook-canvas-part-2/</id>
+    <content src="http://localhost:4000/posts/more-secure-facebook-canvas-part-2/" />
+    <author>
+      <name>qw</name>
+    </author>
+
+  
+    
+    <category term="Uncategorized" />
+    
+  
+
+  
+    <summary>
+      
+
+
+
+
+
+      **Summary**
+
+After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i’ll write about 3 more bugs found which lead to Facebook Account Takeover.
+
+> [More secure Facebook Canvas : Tal...
+    </summary>
+  
+
+  </entry>
+
+</feed>
+
+
