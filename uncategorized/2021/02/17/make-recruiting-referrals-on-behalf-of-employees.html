@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Make recruiting referrals on behalf of employees | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Make recruiting referrals on behalf of employees" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug could allow a malicious user to make recruiting referrals on the behalf of a Facebook employee knowing its Facebook ID. This happens because a certain GraphQL mutation which was doing the referral, was verifying the maker of the request by only checking the actor_id supplied which could be manipulated and set to a different user id like an Employee id which would have the permission to do such action. This was possible by making the GraphQL mutation without cookies (not a logged-in user ). The response to the request would be an error however if we check the email inbox of the email address we supplied in the request , we would find a recruiting referral sent by &quot;Employee name&quot; to the target. Reproduction steps Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with this in the body of the request: doc_id=2203847996377351&amp; variables={&quot;input&quot;:{&quot;client_mutation_id&quot;:1,&quot;actor_id&quot;:&quot;EMPLOYEE_ID&quot;,&quot;name&quot;:&quot;RECEIVER_NAME&quot;,&quot;referral_type&quot;:&quot;REFERRAL&quot;,&quot;email&quot;:&quot;EMAIL_ADDRESS&quot;,&quot;source&quot;:&quot;START_A_REFERRAL&quot;,&quot;referral_sharing_preference&quot;:&quot;NONE&quot;,&quot;actor_type&quot;:&quot;REFERRER&quot;,&quot;submission_status&quot;:&quot;SUBMITTED&quot;,&quot;referrer_id&quot;:&quot;EMPLOYEE_ID&quot;,&quot;preferred_name&quot;:&quot;RECEIVER_NAME&quot;,&quot;links&quot;:[{&quot;type&quot;:&quot;GITHUB&quot;,uri:&quot;https://github.com/samm0uda&quot;}],&quot;is_university&quot;:false,&quot;facebook_id&quot;:&quot;FBID&quot;,&quot;referral_campaign&quot;:null,&quot;location_ids&quot;:null,&quot;position_ids&quot;:678109866167015,&quot;save_as_test&quot;:false,&quot;total_yoe&quot;:4,&quot;time_spent_in_form&quot;:500,&quot;answers&quot;:{&quot;question_key&quot;:&quot;Q357348757785120&quot;,&quot;answer&quot;:&quot;YES&quot;}}} Where: EMPLOYEE_ID: The employee FBID ( I used REDACTED as this was found in another bug to be published )EMAIL_ADDRESS: Target email addressRECEIVER_NAME: Target nameFBID: Target FBID Here i say target however the attacker can make a recruiting request to himself after choosing the right position and all details.This request would return an error after some waiting time. However, if you check your inbox you&#39;ll receive the recruiting email and a link to recruiting preferences also after few days you&#39;ll receive an email from a Facebook employee about the recruiting process. Impact This could allow a malicious user to send recruiting referrals on behalf of any employee. This could also be used to send emails from &ldquo;do-not-reply@recruiting.facebook.com&ldquo; with limited control over the email body. Timeline Dec 19, 2020&mdash; Report Sent Dec 21, 2020&mdash;  Acknowledged by FacebookJan 11, 2021&mdash; Fixed by FacebookJan 29, 2021 &mdash; $3000 bounty awarded by Facebook (including bonus)." />
+<meta property="og:description" content="Description This bug could allow a malicious user to make recruiting referrals on the behalf of a Facebook employee knowing its Facebook ID. This happens because a certain GraphQL mutation which was doing the referral, was verifying the maker of the request by only checking the actor_id supplied which could be manipulated and set to a different user id like an Employee id which would have the permission to do such action. This was possible by making the GraphQL mutation without cookies (not a logged-in user ). The response to the request would be an error however if we check the email inbox of the email address we supplied in the request , we would find a recruiting referral sent by &quot;Employee name&quot; to the target. Reproduction steps Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with this in the body of the request: doc_id=2203847996377351&amp; variables={&quot;input&quot;:{&quot;client_mutation_id&quot;:1,&quot;actor_id&quot;:&quot;EMPLOYEE_ID&quot;,&quot;name&quot;:&quot;RECEIVER_NAME&quot;,&quot;referral_type&quot;:&quot;REFERRAL&quot;,&quot;email&quot;:&quot;EMAIL_ADDRESS&quot;,&quot;source&quot;:&quot;START_A_REFERRAL&quot;,&quot;referral_sharing_preference&quot;:&quot;NONE&quot;,&quot;actor_type&quot;:&quot;REFERRER&quot;,&quot;submission_status&quot;:&quot;SUBMITTED&quot;,&quot;referrer_id&quot;:&quot;EMPLOYEE_ID&quot;,&quot;preferred_name&quot;:&quot;RECEIVER_NAME&quot;,&quot;links&quot;:[{&quot;type&quot;:&quot;GITHUB&quot;,uri:&quot;https://github.com/samm0uda&quot;}],&quot;is_university&quot;:false,&quot;facebook_id&quot;:&quot;FBID&quot;,&quot;referral_campaign&quot;:null,&quot;location_ids&quot;:null,&quot;position_ids&quot;:678109866167015,&quot;save_as_test&quot;:false,&quot;total_yoe&quot;:4,&quot;time_spent_in_form&quot;:500,&quot;answers&quot;:{&quot;question_key&quot;:&quot;Q357348757785120&quot;,&quot;answer&quot;:&quot;YES&quot;}}} Where: EMPLOYEE_ID: The employee FBID ( I used REDACTED as this was found in another bug to be published )EMAIL_ADDRESS: Target email addressRECEIVER_NAME: Target nameFBID: Target FBID Here i say target however the attacker can make a recruiting request to himself after choosing the right position and all details.This request would return an error after some waiting time. However, if you check your inbox you&#39;ll receive the recruiting email and a link to recruiting preferences also after few days you&#39;ll receive an email from a Facebook employee about the recruiting process. Impact This could allow a malicious user to send recruiting referrals on behalf of any employee. This could also be used to send emails from &ldquo;do-not-reply@recruiting.facebook.com&ldquo; with limited control over the email body. Timeline Dec 19, 2020&mdash; Report Sent Dec 21, 2020&mdash;  Acknowledged by FacebookJan 11, 2021&mdash; Fixed by FacebookJan 29, 2021 &mdash; $3000 bounty awarded by Facebook (including bonus)." />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2021/02/17/make-recruiting-referrals-on-behalf-of-employees.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2021/02/17/make-recruiting-referrals-on-behalf-of-employees.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-17T09:24:49+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Make recruiting referrals on behalf of employees" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-02-17T09:24:49+01:00","datePublished":"2021-02-17T09:24:49+01:00","description":"Description This bug could allow a malicious user to make recruiting referrals on the behalf of a Facebook employee knowing its Facebook ID. This happens because a certain GraphQL mutation which was doing the referral, was verifying the maker of the request by only checking the actor_id supplied which could be manipulated and set to a different user id like an Employee id which would have the permission to do such action. This was possible by making the GraphQL mutation without cookies (not a logged-in user ). The response to the request would be an error however if we check the email inbox of the email address we supplied in the request , we would find a recruiting referral sent by &quot;Employee name&quot; to the target. Reproduction steps Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with this in the body of the request: doc_id=2203847996377351&amp; variables={&quot;input&quot;:{&quot;client_mutation_id&quot;:1,&quot;actor_id&quot;:&quot;EMPLOYEE_ID&quot;,&quot;name&quot;:&quot;RECEIVER_NAME&quot;,&quot;referral_type&quot;:&quot;REFERRAL&quot;,&quot;email&quot;:&quot;EMAIL_ADDRESS&quot;,&quot;source&quot;:&quot;START_A_REFERRAL&quot;,&quot;referral_sharing_preference&quot;:&quot;NONE&quot;,&quot;actor_type&quot;:&quot;REFERRER&quot;,&quot;submission_status&quot;:&quot;SUBMITTED&quot;,&quot;referrer_id&quot;:&quot;EMPLOYEE_ID&quot;,&quot;preferred_name&quot;:&quot;RECEIVER_NAME&quot;,&quot;links&quot;:[{&quot;type&quot;:&quot;GITHUB&quot;,uri:&quot;https://github.com/samm0uda&quot;}],&quot;is_university&quot;:false,&quot;facebook_id&quot;:&quot;FBID&quot;,&quot;referral_campaign&quot;:null,&quot;location_ids&quot;:null,&quot;position_ids&quot;:678109866167015,&quot;save_as_test&quot;:false,&quot;total_yoe&quot;:4,&quot;time_spent_in_form&quot;:500,&quot;answers&quot;:{&quot;question_key&quot;:&quot;Q357348757785120&quot;,&quot;answer&quot;:&quot;YES&quot;}}} Where: EMPLOYEE_ID: The employee FBID ( I used REDACTED as this was found in another bug to be published )EMAIL_ADDRESS: Target email addressRECEIVER_NAME: Target nameFBID: Target FBID Here i say target however the attacker can make a recruiting request to himself after choosing the right position and all details.This request would return an error after some waiting time. However, if you check your inbox you&#39;ll receive the recruiting email and a link to recruiting preferences also after few days you&#39;ll receive an email from a Facebook employee about the recruiting process. Impact This could allow a malicious user to send recruiting referrals on behalf of any employee. This could also be used to send emails from &ldquo;do-not-reply@recruiting.facebook.com&ldquo; with limited control over the email body. Timeline Dec 19, 2020&mdash; Report Sent Dec 21, 2020&mdash;  Acknowledged by FacebookJan 11, 2021&mdash; Fixed by FacebookJan 29, 2021 &mdash; $3000 bounty awarded by Facebook (including bonus).","headline":"Make recruiting referrals on behalf of employees","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2021/02/17/make-recruiting-referrals-on-behalf-of-employees.html"},"url":"http://localhost:4000/uncategorized/2021/02/17/make-recruiting-referrals-on-behalf-of-employees.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Make recruiting referrals on behalf of employees</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-02-17T09:24:49+01:00" itemprop="datePublished">Feb 17, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug could allow a malicious user to make recruiting referrals on the behalf of a Facebook employee knowing its Facebook ID.<!--more--> This happens because a certain GraphQL mutation which was doing the referral, was verifying the maker of the request by only checking the actor_id supplied which could be manipulated and set to a different user id like an Employee id which would have the permission to do such action. This was possible by making the GraphQL mutation without cookies (not a logged-in user ). The response to the request would be an error however if we check the email inbox of the email address we supplied in the request , we would find a recruiting referral sent by "Employee name" to the target.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Reproduction steps</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Send a POST request to&nbsp;<a rel="noreferrer noopener" href="https://www.facebook.com/api/graphql/" target="_blank">https://www.facebook.com/api/graphql/</a>&nbsp;without cookies and with this in the body of the request:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>doc_id=2203847996377351&amp;</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>variables={"input":{"client_mutation_id":1,"actor_id":"<strong>EMPLOYEE_ID</strong>","name":"<strong>RECEIVER_NAME</strong>","referral_type":"<strong>REFERRAL</strong>","email":"<strong>EMAIL_ADDRESS</strong>","source":"START_A_REFERRAL","referral_sharing_preference":"NONE","actor_type":"REFERRER","submission_status":"SUBMITTED","referrer_id":"EMPLOYEE_ID","preferred_name":"RECEIVER_NAME","links":[{"type":"GITHUB",uri:"https://github.com/samm0uda"}],"is_university":false,"facebook_id":"<strong>FBID</strong>","referral_campaign":null,"location_ids":null,"position_ids":678109866167015,"save_as_test":false,"total_yoe":4,"time_spent_in_form":500,"answers":{"question_key":"Q357348757785120","answer":"YES"}}}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Where:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>EMPLOYEE_ID</strong>: The employee FBID ( I used REDACTED as this was found in another bug to be published )<br><strong>EMAIL_ADDRESS</strong>: Target email address<br><strong>RECEIVER_NAME</strong>: Target name<br><strong>FBID</strong>: Target FBID</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Here i say target however the attacker can make a recruiting request to himself after choosing the right position and all details.<br>This request would return an error after some waiting time. However, if you check your inbox you'll receive the recruiting email and a link to recruiting preferences also after few days you'll receive an email from a Facebook employee about the recruiting process.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Impact</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This could allow a malicious user to send recruiting referrals on behalf of any employee. This could also be used to send emails from &ldquo;do-not-reply@recruiting.facebook.com&ldquo; with limited control over the email body.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Dec 19, 2020&mdash; Report Sent <br>Dec 21, 2020&mdash;  Acknowledged by Facebook<br>Jan 11, 2021&mdash; Fixed by Facebook<br>Jan 29, 2021 &mdash; $3000 bounty awarded by Facebook (including bonus).</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2021/02/17/make-recruiting-referrals-on-behalf-of-employees.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

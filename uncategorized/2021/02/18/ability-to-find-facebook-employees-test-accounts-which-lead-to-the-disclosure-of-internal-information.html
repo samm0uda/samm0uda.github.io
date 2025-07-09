@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Ability to find Facebook employee’s test accounts which lead to the disclosure of internal information. | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Ability to find Facebook employee’s test accounts which lead to the disclosure of internal information." />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug was not actually a real vulnerability however a weakness in the way employees test accounts user ids were generated. The ids of these accounts are in a certain numerical range which made it easy to extract all the list of these accounts. Impact The impact here is huge. First, the name of these accounts contains the Controllers or the Gatekeepers the employees are testing. Second, These test accounts usually are friends with the employee main account which could be used to extract a list of FB employees.Finally, the content in these accounts like videos/photos exposes very critical information. These information includes employees faces/ employees typing/ devices (phones/modems/computers) serial numbers. Also some of the accounts disclosed tools source code/ testing internal tools / in-development tools, debugging tools, emails, credentials, videos where employees are talking about an idea of a tool and even personal videos of employees or office. Reproduction Steps Setup===1) To get the list of these accounts, i run a fuzzer which make POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies to avoid detection and with the parameter q=node(ID){__typename} The list of ID is the range 499000000 - 499999999. 2) After getting the list of account ids, i run the fuzzer again to get the list of videos by sending a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with the parameters variables={&quot;count&quot;:50,&quot;scale&quot;:1,&quot;id&quot;:&quot;BASE_64&quot;}&amp;doc_id=2902049703244388 where BASE_64 is a base64 encoded &quot;app_collection:FB_ID:1560653304174514:133&quot; with FB_ID is the test account id. This returned all accounts videos. 3) Gathering the video_ids from these accounts and then downloading them. These videos ,as i described above, contained very critical information and below a sample of some of the accounts that disclosed these data:https://www.facebook.com/499645675/videos/10150012296724945/&nbsp;https://www.facebook.com/bugvideosuser.bugvideosuser/videoshttps://www.facebook.com/video.23https://www.facebook.com/wang189/videoshttps://www.facebook.com/ronald.test.52https://www.facebook.com/499731162/videos/https://www.facebook.com/jxhhh.jxhhh Timeline May 8, 2020&mdash; Report Sent May 8, 2020&mdash;  Acknowledged by FacebookMay 14, 2020 &mdash; $500 bounty awarded by Facebook. (seriously?)Dec 1 , 2020&mdash; Fixed by Facebook" />
+<meta property="og:description" content="Description This bug was not actually a real vulnerability however a weakness in the way employees test accounts user ids were generated. The ids of these accounts are in a certain numerical range which made it easy to extract all the list of these accounts. Impact The impact here is huge. First, the name of these accounts contains the Controllers or the Gatekeepers the employees are testing. Second, These test accounts usually are friends with the employee main account which could be used to extract a list of FB employees.Finally, the content in these accounts like videos/photos exposes very critical information. These information includes employees faces/ employees typing/ devices (phones/modems/computers) serial numbers. Also some of the accounts disclosed tools source code/ testing internal tools / in-development tools, debugging tools, emails, credentials, videos where employees are talking about an idea of a tool and even personal videos of employees or office. Reproduction Steps Setup===1) To get the list of these accounts, i run a fuzzer which make POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies to avoid detection and with the parameter q=node(ID){__typename} The list of ID is the range 499000000 - 499999999. 2) After getting the list of account ids, i run the fuzzer again to get the list of videos by sending a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with the parameters variables={&quot;count&quot;:50,&quot;scale&quot;:1,&quot;id&quot;:&quot;BASE_64&quot;}&amp;doc_id=2902049703244388 where BASE_64 is a base64 encoded &quot;app_collection:FB_ID:1560653304174514:133&quot; with FB_ID is the test account id. This returned all accounts videos. 3) Gathering the video_ids from these accounts and then downloading them. These videos ,as i described above, contained very critical information and below a sample of some of the accounts that disclosed these data:https://www.facebook.com/499645675/videos/10150012296724945/&nbsp;https://www.facebook.com/bugvideosuser.bugvideosuser/videoshttps://www.facebook.com/video.23https://www.facebook.com/wang189/videoshttps://www.facebook.com/ronald.test.52https://www.facebook.com/499731162/videos/https://www.facebook.com/jxhhh.jxhhh Timeline May 8, 2020&mdash; Report Sent May 8, 2020&mdash;  Acknowledged by FacebookMay 14, 2020 &mdash; $500 bounty awarded by Facebook. (seriously?)Dec 1 , 2020&mdash; Fixed by Facebook" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2021/02/18/ability-to-find-facebook-employees-test-accounts-which-lead-to-the-disclosure-of-internal-information.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2021/02/18/ability-to-find-facebook-employees-test-accounts-which-lead-to-the-disclosure-of-internal-information.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-18T08:38:26+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Ability to find Facebook employee’s test accounts which lead to the disclosure of internal information." />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-02-18T08:38:26+01:00","datePublished":"2021-02-18T08:38:26+01:00","description":"Description This bug was not actually a real vulnerability however a weakness in the way employees test accounts user ids were generated. The ids of these accounts are in a certain numerical range which made it easy to extract all the list of these accounts. Impact The impact here is huge. First, the name of these accounts contains the Controllers or the Gatekeepers the employees are testing. Second, These test accounts usually are friends with the employee main account which could be used to extract a list of FB employees.Finally, the content in these accounts like videos/photos exposes very critical information. These information includes employees faces/ employees typing/ devices (phones/modems/computers) serial numbers. Also some of the accounts disclosed tools source code/ testing internal tools / in-development tools, debugging tools, emails, credentials, videos where employees are talking about an idea of a tool and even personal videos of employees or office. Reproduction Steps Setup===1) To get the list of these accounts, i run a fuzzer which make POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies to avoid detection and with the parameter q=node(ID){__typename} The list of ID is the range 499000000 - 499999999. 2) After getting the list of account ids, i run the fuzzer again to get the list of videos by sending a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with the parameters variables={&quot;count&quot;:50,&quot;scale&quot;:1,&quot;id&quot;:&quot;BASE_64&quot;}&amp;doc_id=2902049703244388 where BASE_64 is a base64 encoded &quot;app_collection:FB_ID:1560653304174514:133&quot; with FB_ID is the test account id. This returned all accounts videos. 3) Gathering the video_ids from these accounts and then downloading them. These videos ,as i described above, contained very critical information and below a sample of some of the accounts that disclosed these data:https://www.facebook.com/499645675/videos/10150012296724945/&nbsp;https://www.facebook.com/bugvideosuser.bugvideosuser/videoshttps://www.facebook.com/video.23https://www.facebook.com/wang189/videoshttps://www.facebook.com/ronald.test.52https://www.facebook.com/499731162/videos/https://www.facebook.com/jxhhh.jxhhh Timeline May 8, 2020&mdash; Report Sent May 8, 2020&mdash;  Acknowledged by FacebookMay 14, 2020 &mdash; $500 bounty awarded by Facebook. (seriously?)Dec 1 , 2020&mdash; Fixed by Facebook","headline":"Ability to find Facebook employee’s test accounts which lead to the disclosure of internal information.","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2021/02/18/ability-to-find-facebook-employees-test-accounts-which-lead-to-the-disclosure-of-internal-information.html"},"url":"http://localhost:4000/uncategorized/2021/02/18/ability-to-find-facebook-employees-test-accounts-which-lead-to-the-disclosure-of-internal-information.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Ability to find Facebook employee&#39;s test accounts which lead to the disclosure of internal information.</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-02-18T08:38:26+01:00" itemprop="datePublished">Feb 18, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug was not actually a real vulnerability however a weakness in the way employees test accounts user ids were generated. The ids of these accounts are in a certain numerical range which made it easy to extract all the list of these accounts. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Impact</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The impact here is huge. First, the name of these accounts contains the Controllers or the Gatekeepers the employees are testing. Second, These test accounts usually are friends with the employee main account which could be used to extract a list of FB employees.<br>Finally, the content in these accounts like videos/photos exposes very critical information. These information includes employees faces/ employees typing/ devices (phones/modems/computers) serial numbers. Also some of the accounts disclosed tools source code/ testing internal tools / in-development tools, debugging tools, emails, credentials, videos where employees are talking about an idea of a tool and even personal videos of employees or office.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Reproduction Steps</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Setup<br>===<br>1) To get the list of these accounts, i run a fuzzer which make POST request to&nbsp;<a href="https://www.facebook.com/api/graphql/" rel="noreferrer noopener" target="_blank">https://www.facebook.com/api/graphql/</a>&nbsp;without cookies to avoid detection and with the parameter q=node(ID){__typename}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The list of ID is the range 499000000 - 499999999.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>2) After getting the list of account ids, i run the fuzzer again to get the list of videos by sending a POST request to&nbsp;<a rel="noreferrer noopener" href="https://www.facebook.com/api/graphql/" target="_blank">https://www.facebook.com/api/graphql/</a>&nbsp;with the parameters </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>variables={"count":50,"scale":1,"id":"BASE_64"}<br>&amp;doc_id=2902049703244388</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>where BASE_64 is a base64 encoded "app_collection:FB_ID:1560653304174514:133" with FB_ID is the test account id. This returned all accounts videos.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>3) Gathering the video_ids from these accounts and then downloading them.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>These videos ,as i described above, contained very critical information and below a sample of some of the accounts that disclosed these data:<br><a rel="noreferrer noopener" href="https://www.facebook.com/499645675/videos/10150012296724945/" target="_blank">https://www.facebook.com/499645675/videos/10150012296724945/</a>&nbsp;<br><a rel="noreferrer noopener" href="https://www.facebook.com/bugvideosuser.bugvideosuser/videos" target="_blank">https://www.facebook.com/bugvideosuser.bugvideosuser/videos</a><br><a rel="noreferrer noopener" href="https://www.facebook.com/video.23" target="_blank">https://www.facebook.com/video.23</a><br><a rel="noreferrer noopener" href="https://www.facebook.com/wang189/videos" target="_blank">https://www.facebook.com/wang189/videos</a><br><a rel="noreferrer noopener" href="https://www.facebook.com/ronald.test.52" target="_blank">https://www.facebook.com/ronald.test.52</a><br><a rel="noreferrer noopener" href="https://www.facebook.com/499731162/videos/" target="_blank">https://www.facebook.com/499731162/videos/</a><br><a rel="noreferrer noopener" href="https://www.facebook.com/jxhhh.jxhhh" target="_blank">https://www.facebook.com/jxhhh.jxhhh</a></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>May 8, 2020&mdash; Report Sent <br>May 8, 2020&mdash;  Acknowledged by Facebook<br>May 14, 2020 &mdash; $500 bounty awarded by Facebook. (seriously?)<br>Dec 1 , 2020&mdash; Fixed by Facebook<br></p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2021/02/18/ability-to-find-facebook-employees-test-accounts-which-lead-to-the-disclosure-of-internal-information.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

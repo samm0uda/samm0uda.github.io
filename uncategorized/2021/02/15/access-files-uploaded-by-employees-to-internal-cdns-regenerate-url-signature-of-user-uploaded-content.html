@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Access files uploaded by employees to internal CDNs / Regenerate URL signature of user uploaded content. | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Access files uploaded by employees to internal CDNs / Regenerate URL signature of user uploaded content." />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug could allow an attacker to download files which have been uploaded previously by employees or normal Facebook users. The vulnerability allows the attacker to download files from the CDN scontent.{*}.fna.fbcdn.net&nbsp;and also from internal CDNs like&nbsp;interncache-cln.fbcdn.net&nbsp;which can&#39;t be accessed by a normal user even with a valid file URL (points to local ips) The selection of the file to download is done by specifying an encrypted string which represent the ids of the file (HANDLE) . I broke the encoding before (More details will be provided in future writeups) which made it easier for me to download users files like privacy_changed/deleted photos by only knowing an old URL. This is the same bug as this one which allowed me to download internal files like partial source code, crush log files of Facebook mobile users. Impact This bug could allow an attacker to regenerate a valid URL signature for user uploaded content (photos/videos/attachments) which is not available anymore or its privacy has been changed. Also this could allow him to see employees uploads hosted in internal CDNs after knowing a previous URL or the HANDLE (which consists of encrypted file ids). Reproduction Steps Setup===1) Go to&nbsp;https://www.facebook.com/collabsmanager/start/&nbsp;and apply as a Creator ( your page should meet the standards so you should bypass this or use an eligble page) 2) After getting accepted, go to&nbsp;https://www.facebook.com/collabsmanager/&nbsp;and hit &quot;Login&quot; in the top right corner of the page. You should be redirected to a similar URL:&nbsp;https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/ Steps=== 1) Start a proxy like BurpSuite to repeat requests.2) Click on &quot;Edit&quot; in &quot;Introduction&quot; section3) Upload a &quot;Video&quot; by clicking &quot;Add Video&quot;4) After the uploading is complete, Click &quot;Delete&quot; to delete the uploaded video 5) Now if you go to BurpSuite history, you should have 3 POST requests made to these endpoints in this order: https://vupload-edge.facebook.com/ajax/video/upload/requests/start/https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/ 6) Repeat the request to&nbsp;https://vupload-edge.facebook.com/ajax/video/upload/requests/start/&nbsp;after changing the &quot;file_extension&quot; parameter in the body to &quot;jpg&quot; You should get a video_id in the response noted XXXXXXX 7) Replay the request to&nbsp;https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/&nbsp;after changing the &quot;video_id&quot; parameter to XXXXXXX AND changing the parameter &quot;fbuploader_video_file_chunk&quot; in the body to a different value as described below: you should have a value like this one 1:dW5kZWZpbmVk:application/octet-stream:GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa:e:1568148336:ARa5BNCPUwoIKBVqyao The interesting part of this string is GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa. This the HANDLE that i talked about above. It refers to uploaded files to your CDNS. Now we should change this handle to any other handle that refers to a file we want to download. For demonstration purposes, i&#39;ll use this handle GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB which refers to an internal file (crash logs) : The final new value should be 1:dW5kZWZpbmVk:application/octet-stream:GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB:e:1568148336:ARa5BNCPUwoIKBVqyao (of course this value is different in your side) . In the response, we should get &quot;start_offset&quot; and &quot;end_offset&quot; values. (irrelevant but indicates that the uploading was successful)8) Replay the request to&nbsp;https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/&nbsp;after changing &quot;video_id&quot; to XXXXXXX9) Visit https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/ and you&#39;ll find a broken video player ( internal file pulled is not a video ). If you check the value inside &quot;src&quot; attribute in the source tag, you&#39;ll find an URL to a file in the scontent.*.fbcdn.net domain. The internal file was copied to another file accessible in a public CDN. Timeline Sep 6, 2019&mdash; Report Sent Sep 9, 2019&mdash;  Acknowledged by FacebookSep 21, 2019&mdash; Fixed by FacebookSep 21, 2019 &mdash; $12500 bounty awarded by Facebook." />
+<meta property="og:description" content="Description This bug could allow an attacker to download files which have been uploaded previously by employees or normal Facebook users. The vulnerability allows the attacker to download files from the CDN scontent.{*}.fna.fbcdn.net&nbsp;and also from internal CDNs like&nbsp;interncache-cln.fbcdn.net&nbsp;which can&#39;t be accessed by a normal user even with a valid file URL (points to local ips) The selection of the file to download is done by specifying an encrypted string which represent the ids of the file (HANDLE) . I broke the encoding before (More details will be provided in future writeups) which made it easier for me to download users files like privacy_changed/deleted photos by only knowing an old URL. This is the same bug as this one which allowed me to download internal files like partial source code, crush log files of Facebook mobile users. Impact This bug could allow an attacker to regenerate a valid URL signature for user uploaded content (photos/videos/attachments) which is not available anymore or its privacy has been changed. Also this could allow him to see employees uploads hosted in internal CDNs after knowing a previous URL or the HANDLE (which consists of encrypted file ids). Reproduction Steps Setup===1) Go to&nbsp;https://www.facebook.com/collabsmanager/start/&nbsp;and apply as a Creator ( your page should meet the standards so you should bypass this or use an eligble page) 2) After getting accepted, go to&nbsp;https://www.facebook.com/collabsmanager/&nbsp;and hit &quot;Login&quot; in the top right corner of the page. You should be redirected to a similar URL:&nbsp;https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/ Steps=== 1) Start a proxy like BurpSuite to repeat requests.2) Click on &quot;Edit&quot; in &quot;Introduction&quot; section3) Upload a &quot;Video&quot; by clicking &quot;Add Video&quot;4) After the uploading is complete, Click &quot;Delete&quot; to delete the uploaded video 5) Now if you go to BurpSuite history, you should have 3 POST requests made to these endpoints in this order: https://vupload-edge.facebook.com/ajax/video/upload/requests/start/https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/ 6) Repeat the request to&nbsp;https://vupload-edge.facebook.com/ajax/video/upload/requests/start/&nbsp;after changing the &quot;file_extension&quot; parameter in the body to &quot;jpg&quot; You should get a video_id in the response noted XXXXXXX 7) Replay the request to&nbsp;https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/&nbsp;after changing the &quot;video_id&quot; parameter to XXXXXXX AND changing the parameter &quot;fbuploader_video_file_chunk&quot; in the body to a different value as described below: you should have a value like this one 1:dW5kZWZpbmVk:application/octet-stream:GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa:e:1568148336:ARa5BNCPUwoIKBVqyao The interesting part of this string is GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa. This the HANDLE that i talked about above. It refers to uploaded files to your CDNS. Now we should change this handle to any other handle that refers to a file we want to download. For demonstration purposes, i&#39;ll use this handle GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB which refers to an internal file (crash logs) : The final new value should be 1:dW5kZWZpbmVk:application/octet-stream:GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB:e:1568148336:ARa5BNCPUwoIKBVqyao (of course this value is different in your side) . In the response, we should get &quot;start_offset&quot; and &quot;end_offset&quot; values. (irrelevant but indicates that the uploading was successful)8) Replay the request to&nbsp;https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/&nbsp;after changing &quot;video_id&quot; to XXXXXXX9) Visit https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/ and you&#39;ll find a broken video player ( internal file pulled is not a video ). If you check the value inside &quot;src&quot; attribute in the source tag, you&#39;ll find an URL to a file in the scontent.*.fbcdn.net domain. The internal file was copied to another file accessible in a public CDN. Timeline Sep 6, 2019&mdash; Report Sent Sep 9, 2019&mdash;  Acknowledged by FacebookSep 21, 2019&mdash; Fixed by FacebookSep 21, 2019 &mdash; $12500 bounty awarded by Facebook." />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2021/02/15/access-files-uploaded-by-employees-to-internal-cdns-regenerate-url-signature-of-user-uploaded-content.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2021/02/15/access-files-uploaded-by-employees-to-internal-cdns-regenerate-url-signature-of-user-uploaded-content.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-15T08:27:01+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Access files uploaded by employees to internal CDNs / Regenerate URL signature of user uploaded content." />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-02-15T08:27:01+01:00","datePublished":"2021-02-15T08:27:01+01:00","description":"Description This bug could allow an attacker to download files which have been uploaded previously by employees or normal Facebook users. The vulnerability allows the attacker to download files from the CDN scontent.{*}.fna.fbcdn.net&nbsp;and also from internal CDNs like&nbsp;interncache-cln.fbcdn.net&nbsp;which can&#39;t be accessed by a normal user even with a valid file URL (points to local ips) The selection of the file to download is done by specifying an encrypted string which represent the ids of the file (HANDLE) . I broke the encoding before (More details will be provided in future writeups) which made it easier for me to download users files like privacy_changed/deleted photos by only knowing an old URL. This is the same bug as this one which allowed me to download internal files like partial source code, crush log files of Facebook mobile users. Impact This bug could allow an attacker to regenerate a valid URL signature for user uploaded content (photos/videos/attachments) which is not available anymore or its privacy has been changed. Also this could allow him to see employees uploads hosted in internal CDNs after knowing a previous URL or the HANDLE (which consists of encrypted file ids). Reproduction Steps Setup===1) Go to&nbsp;https://www.facebook.com/collabsmanager/start/&nbsp;and apply as a Creator ( your page should meet the standards so you should bypass this or use an eligble page) 2) After getting accepted, go to&nbsp;https://www.facebook.com/collabsmanager/&nbsp;and hit &quot;Login&quot; in the top right corner of the page. You should be redirected to a similar URL:&nbsp;https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/ Steps=== 1) Start a proxy like BurpSuite to repeat requests.2) Click on &quot;Edit&quot; in &quot;Introduction&quot; section3) Upload a &quot;Video&quot; by clicking &quot;Add Video&quot;4) After the uploading is complete, Click &quot;Delete&quot; to delete the uploaded video 5) Now if you go to BurpSuite history, you should have 3 POST requests made to these endpoints in this order: https://vupload-edge.facebook.com/ajax/video/upload/requests/start/https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/ 6) Repeat the request to&nbsp;https://vupload-edge.facebook.com/ajax/video/upload/requests/start/&nbsp;after changing the &quot;file_extension&quot; parameter in the body to &quot;jpg&quot; You should get a video_id in the response noted XXXXXXX 7) Replay the request to&nbsp;https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/&nbsp;after changing the &quot;video_id&quot; parameter to XXXXXXX AND changing the parameter &quot;fbuploader_video_file_chunk&quot; in the body to a different value as described below: you should have a value like this one 1:dW5kZWZpbmVk:application/octet-stream:GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa:e:1568148336:ARa5BNCPUwoIKBVqyao The interesting part of this string is GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa. This the HANDLE that i talked about above. It refers to uploaded files to your CDNS. Now we should change this handle to any other handle that refers to a file we want to download. For demonstration purposes, i&#39;ll use this handle GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB which refers to an internal file (crash logs) : The final new value should be 1:dW5kZWZpbmVk:application/octet-stream:GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB:e:1568148336:ARa5BNCPUwoIKBVqyao (of course this value is different in your side) . In the response, we should get &quot;start_offset&quot; and &quot;end_offset&quot; values. (irrelevant but indicates that the uploading was successful)8) Replay the request to&nbsp;https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/&nbsp;after changing &quot;video_id&quot; to XXXXXXX9) Visit https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/ and you&#39;ll find a broken video player ( internal file pulled is not a video ). If you check the value inside &quot;src&quot; attribute in the source tag, you&#39;ll find an URL to a file in the scontent.*.fbcdn.net domain. The internal file was copied to another file accessible in a public CDN. Timeline Sep 6, 2019&mdash; Report Sent Sep 9, 2019&mdash;  Acknowledged by FacebookSep 21, 2019&mdash; Fixed by FacebookSep 21, 2019 &mdash; $12500 bounty awarded by Facebook.","headline":"Access files uploaded by employees to internal CDNs / Regenerate URL signature of user uploaded content.","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2021/02/15/access-files-uploaded-by-employees-to-internal-cdns-regenerate-url-signature-of-user-uploaded-content.html"},"url":"http://localhost:4000/uncategorized/2021/02/15/access-files-uploaded-by-employees-to-internal-cdns-regenerate-url-signature-of-user-uploaded-content.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Access files uploaded by employees to internal CDNs / Regenerate URL signature of user uploaded content.</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-02-15T08:27:01+01:00" itemprop="datePublished">Feb 15, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>
+<p>This bug could allow an attacker to download files which have been uploaded previously by employees or normal Facebook users. The vulnerability allows the attacker to download files from the CDN <strong>scontent.{*}.fna.fbcdn.net</strong>&nbsp;and also from internal CDNs like&nbsp;<strong>interncache-cln.fbcdn.net</strong>&nbsp;which can't be accessed by a normal user even with a valid file URL (points to local ips)</p>
+<p><!--more--></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The selection of the file to download is done by specifying an encrypted string which represent the ids of the file (HANDLE) . I broke the encoding before (More details will be provided in future writeups) which made it easier for me to download users files like privacy_changed/deleted photos by only knowing an old URL.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This is the same bug as <a href="https://ysamm.com/?p=404" data-type="URL" data-id="https://ysamm.com/?p=404" target="_blank" rel="noreferrer noopener">this one</a> which allowed me to download internal files like partial source code, crush log files of Facebook mobile users.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Impact</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug could allow an attacker to regenerate a valid URL signature for user uploaded content (photos/videos/attachments) which is not available anymore or its privacy has been changed. Also this could allow him to see employees uploads hosted in internal CDNs after knowing a previous URL or the HANDLE (which consists of encrypted file ids).</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Reproduction Steps</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Setup<br>===<br>1) Go to&nbsp;<a href="https://www.facebook.com/collabsmanager/start/" rel="noreferrer noopener" target="_blank">https://www.facebook.com/collabsmanager/start/</a>&nbsp;and apply as a Creator ( your page should meet the standards so you should bypass this or use an eligble page)</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>2) After getting accepted, go to&nbsp;<a rel="noreferrer noopener" href="https://www.facebook.com/collabsmanager/" target="_blank">https://www.facebook.com/collabsmanager/</a>&nbsp;and hit "Login" in the top right corner of the page. You should be redirected to a similar URL:&nbsp;<a rel="noreferrer noopener" href="https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/" target="_blank" data-type="URL" data-id="https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/">https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/</a></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Steps<br>===</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>1) Start a proxy like BurpSuite to repeat requests.<br>2) Click on "Edit" in "Introduction" section<br>3) Upload a "Video" by clicking "Add Video"<br>4) After the uploading is complete, Click "Delete" to delete the uploaded video</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>5) Now if you go to BurpSuite history, you should have 3 POST requests made to these endpoints in this order:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>https://vupload-edge.facebook.com/ajax/video/upload/requests/start/<br>https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/<br>https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>6) Repeat the request to&nbsp;<a href="https://vupload-edge.facebook.com/ajax/video/upload/requests/start/">https://vupload-edge.facebook.com/ajax/video/upload/requests/start/</a>&nbsp;after changing the "file_extension" parameter in the body to "jpg"</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>You should get a video_id in the response noted <strong>XXXXXXX</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>7) Replay the request to&nbsp;<a href="https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/" target="_blank" rel="noreferrer noopener">https://vupload-edge.facebook.com/ajax/video/upload/requests/receive/</a>&nbsp;after changing the "video_id" parameter to XXXXXXX</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>AND changing the parameter "<strong>fbuploader_video_file_chunk</strong>" in the body to a different value as described below:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>you should have a value like this one 1:dW5kZWZpbmVk:application/octet-stream:GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa:e:1568148336:ARa5BNCPUwoIKBVqyao</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The interesting part of this string is GBapFAFK2bAstIUBAAAAAACthEIbbj07AACa. This the HANDLE that i talked about above. It refers to uploaded files to your CDNS. Now we should change this handle to any other handle that refers to a file we want to download. For demonstration purposes, i'll use this handle GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB which refers to an internal file (crash logs) :</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The final new value should be 1:dW5kZWZpbmVk:application/octet-stream:GFxcvkCRANjMRgABANB4MEoAAAAAbnsvAAAB:e:1568148336:ARa5BNCPUwoIKBVqyao (of course this value is different in your side) . In the response, we should get "start_offset" and "end_offset" values. (irrelevant but indicates that the uploading was successful)<br><br>8) Replay the request to&nbsp;<a rel="noreferrer noopener" href="https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/" target="_blank">https://business.facebook.com/branded_content/creator_profile/pitch_deck_video/async/save/</a>&nbsp;after changing "video_id" to XXXXXXX<br><br>9) Visit <a rel="noreferrer noopener" href="https://business.facebook.com/collabsmanager/creator/creator_portfolio/%7BID%7D/" target="_blank">https://business.facebook.com/collabsmanager/creator/creator_portfolio/{ID}/</a> and you'll find a broken video player ( internal file pulled is not a video ). If you check the value inside "src" attribute in the source tag, you'll find an URL to a file in the scontent.*.fbcdn.net domain. The internal file was copied to another file accessible in a public CDN.<br></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Sep 6, 2019&mdash; Report Sent <br>Sep 9, 2019&mdash;  Acknowledged by Facebook<br>Sep 21, 2019&mdash; Fixed by Facebook<br>Sep 21, 2019 &mdash; $12500 bounty awarded by Facebook.</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2021/02/15/access-files-uploaded-by-employees-to-internal-cdns-regenerate-url-signature-of-user-uploaded-content.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

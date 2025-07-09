@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts. This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting auth.oculus.com/login/, the endpoint would redirect to auth.meta.com/oidc/ for login using Meta Accounts and then come back to the auth.oculus.com. We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, auth.oculus.com/login was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in auth.oculus.com/login/?redirect_uri=Redirect_Here. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit. Details Setup: 1. Victim is logged-in to Facebook.com2. Victim is not logged-in to Oculus.com ( this is not necessary since we can use a logout CSRF here ) Attack:1) Login CSRF the victim to his Meta account by redirecting to this page https://auth.meta.com/login/facebook/2) Open https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN 4) Eventually the access_token would be leaked to https://ysamm.com The open redirect here was not fully disclosed since it&#39;s still not fully fixed. Timeline Aug 27, 2022&mdash; Report Sent Sep 25, 2022&mdash;  Acknowledged by MetaSep 25, 2022&mdash; Fixed by MetaSep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for Highest Impact Report )" />
+<meta property="og:description" content="A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts. This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting auth.oculus.com/login/, the endpoint would redirect to auth.meta.com/oidc/ for login using Meta Accounts and then come back to the auth.oculus.com. We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, auth.oculus.com/login was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in auth.oculus.com/login/?redirect_uri=Redirect_Here. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit. Details Setup: 1. Victim is logged-in to Facebook.com2. Victim is not logged-in to Oculus.com ( this is not necessary since we can use a logout CSRF here ) Attack:1) Login CSRF the victim to his Meta account by redirecting to this page https://auth.meta.com/login/facebook/2) Open https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN 4) Eventually the access_token would be leaked to https://ysamm.com The open redirect here was not fully disclosed since it&#39;s still not fully fixed. Timeline Aug 27, 2022&mdash; Report Sent Sep 25, 2022&mdash;  Acknowledged by MetaSep 25, 2022&mdash; Fixed by MetaSep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for Highest Impact Report )" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2023-01-29T13:04:37+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2023-01-29T13:04:37+01:00","datePublished":"2023-01-29T13:04:37+01:00","description":"A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts. This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting auth.oculus.com/login/, the endpoint would redirect to auth.meta.com/oidc/ for login using Meta Accounts and then come back to the auth.oculus.com. We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, auth.oculus.com/login was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in auth.oculus.com/login/?redirect_uri=Redirect_Here. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit. Details Setup: 1. Victim is logged-in to Facebook.com2. Victim is not logged-in to Oculus.com ( this is not necessary since we can use a logout CSRF here ) Attack:1) Login CSRF the victim to his Meta account by redirecting to this page https://auth.meta.com/login/facebook/2) Open https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN 4) Eventually the access_token would be leaked to https://ysamm.com The open redirect here was not fully disclosed since it&#39;s still not fully fixed. Timeline Aug 27, 2022&mdash; Report Sent Sep 25, 2022&mdash;  Acknowledged by MetaSep 25, 2022&mdash; Fixed by MetaSep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for Highest Impact Report )","headline":"Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html"},"url":"http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2023-01-29T13:04:37+01:00" itemprop="datePublished">Jan 29, 2023
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
+<p style="font-size:30px">
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts.  <br><br>This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has <strong><a href="http://auth.oculus.com/login/">auth.oculus.com/login/</a></strong> endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting <strong><a href="http://auth.oculus.com/login/" data-type="URL" data-id="auth.oculus.com/login/">auth.oculus.com/login/</a></strong>, the endpoint would redirect to <a href="http://auth.meta.com/oidc/">auth.meta.com/oidc/</a> for login using Meta Accounts and then come back to the auth.oculus.com. <br><br>We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, <a href="http://auth.oculus.com/login">auth.oculus.com/login</a> was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in <a href="http://auth.oculus.com/login/?redirect_uri=Redirect_Here">auth.oculus.com/login/?redirect_uri=Redirect_Here</a>. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
+<p style="font-size:30px"><strong>Details</strong></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Setup:</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>1. Victim is logged-in to <a href="https://facebook.com/">Facebook.com</a><br>2. Victim is not logged-in to <a href="https://l.facebook.com/l.php?u=http%3A%2F%2FOculus.com%2F%3Ffbclid%3DIwAR0iBRvQMbk-2rLkCcZdJVietJdBU28tY_1v_AP6XdvUN3NkJl89eSDB9nM&amp;h=AT3MKIAPmmotcNSrKVJ8Rpqvw5CIbxOhQooIA9Gj8Hbqp9jCiomjG1qQv1qyzrAtk8xUp5YP0DgSzDj4t0E_0KRqTMy3g-kBKOFI4YpDHPQ0ZRbzOVVyq9RTd1KDjxrX9XmHOx8r2kI">Oculus.com</a> ( this is not necessary since we can use a logout CSRF here )</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Attack:<br><br>1) Login CSRF the victim to his Meta account by redirecting to this page  <a href="https://l.facebook.com/l.php?u=https%3A%2F%2Fauth.meta.com%2Flogin%2Ffacebook%2F%3Ffbclid%3DIwAR03K8axPxMWJXxKSS5BUbUtTHa8CE1rPm-M6nQts2JLbOBUpNP06pEytC4&amp;h=AT0y-zHscHbdw102lWpuzOXh0q-YanPXBnMkoOVPf-vjqsPLIAWFFBAVUijoL7ja6TEZDOFJ6njX79wUsdJ0Oqk_y_wUV3TvfY_AK7fxWFOB_9VfAF45T9kEhKlvBTwo519AtQEKMA">https://auth.meta.com/login/facebook/</a><br><br>2) Open <strong><a href="https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token">https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token</a></strong><br><br>3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>4) Eventually the access_token would be leaked to <a href="https://ysamm.com">https://ysamm.com</a></p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p><br>The open redirect here was not fully disclosed since it's still not fully fixed.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
+<p style="font-size:30px">Timeline</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Aug 27, 2022&mdash; Report Sent <br>Sep 25, 2022&mdash;  Acknowledged by Meta<br>Sep 25, 2022&mdash; Fixed by Meta<br>Sep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for <strong>Highest Impact Report</strong> )</p>
+<p><!-- /wp:paragraph --></p>
+
+  </div><a class="u-url" href="/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
