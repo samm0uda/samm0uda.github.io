@@ -13,11 +13,11 @@
 <meta property="og:url" content="http://localhost:4000/uncategorized/2019/01/22/uploading-files-to-api-techprep-fb-com.html" />
 <meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2019-01-22T12:01:10+01:00" />
+<meta property="article:published_time" content="2019-01-22T13:01:10+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Uploading files to api.techprep.fb.com" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-01-22T12:01:10+01:00","datePublished":"2019-01-22T12:01:10+01:00","description":"This bug found in one of Facebook domains (api.techprep.fb.com) could allowed an attacker to upload files to the server. All filetypes were supported that could lead to XSS. Reproduction Instructions / Proof of Concept 1-Sign up in&nbsp;techprep.fb.com2-After logging in, the attacker intercept any request to&nbsp;api.techprep.fb.comthen get the _Applicationid3-The attacker make a POST request to&nbsp;api.techprep.fb.com/parse/files/FILENAME.EXT&nbsp;with the header X-Parse-Application-Id:+(_Applicationid)and the Content-Type: header then the file content (HTML File or image)The respond of the request contains the file path Request sent using Burp Suite This bug is found because the Parse Server was used without disabling the uploading files feature and without implementing ACL when configuring the server. TimelineDec 21, 2017 &mdash; Report SentDec 27, 2017 &mdash; Further investigation by FacebookJan 22, 2018 &mdash; Fixed by FacebookJan 24, 2018 &mdash; Bounty Awarded by Facebook","headline":"Uploading files to api.techprep.fb.com","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2019/01/22/uploading-files-to-api-techprep-fb-com.html"},"url":"http://localhost:4000/uncategorized/2019/01/22/uploading-files-to-api-techprep-fb-com.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-01-22T13:01:10+02:00","datePublished":"2019-01-22T13:01:10+02:00","description":"This bug found in one of Facebook domains (api.techprep.fb.com) could allowed an attacker to upload files to the server. All filetypes were supported that could lead to XSS. Reproduction Instructions / Proof of Concept 1-Sign up in&nbsp;techprep.fb.com2-After logging in, the attacker intercept any request to&nbsp;api.techprep.fb.comthen get the _Applicationid3-The attacker make a POST request to&nbsp;api.techprep.fb.com/parse/files/FILENAME.EXT&nbsp;with the header X-Parse-Application-Id:+(_Applicationid)and the Content-Type: header then the file content (HTML File or image)The respond of the request contains the file path Request sent using Burp Suite This bug is found because the Parse Server was used without disabling the uploading files feature and without implementing ACL when configuring the server. TimelineDec 21, 2017 &mdash; Report SentDec 27, 2017 &mdash; Further investigation by FacebookJan 22, 2018 &mdash; Fixed by FacebookJan 24, 2018 &mdash; Bounty Awarded by Facebook","headline":"Uploading files to api.techprep.fb.com","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2019/01/22/uploading-files-to-api-techprep-fb-com.html"},"url":"http://localhost:4000/uncategorized/2019/01/22/uploading-files-to-api-techprep-fb-com.html"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
 <body><header class="site-header" role="banner">
@@ -42,7 +42,7 @@
   <header class="post-header">
     <h1 class="post-title p-name" itemprop="name headline">Uploading files to api.techprep.fb.com</h1>
     <p class="post-meta">
-      <time class="dt-published" datetime="2019-01-22T12:01:10+01:00" itemprop="datePublished">Jan 22, 2019
+      <time class="dt-published" datetime="2019-01-22T13:01:10+02:00" itemprop="datePublished">Jan 22, 2019
       </time></p>
   </header>
 

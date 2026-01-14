@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction" />
+<meta property="og:description" content="Introduction" />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2025/01/13/capig-xss.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2025/01/13/capig-xss.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2025-01-13T14:04:43+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2025-01-13T14:04:43+02:00","datePublished":"2025-01-13T14:04:43+02:00","description":"Introduction","headline":"Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2025/01/13/capig-xss.html"},"url":"http://localhost:4000/uncategorized/2025/01/13/capig-xss.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2025-01-13T14:04:43+02:00" itemprop="datePublished">Jan 13, 2025
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="introduction">Introduction</h2>
+
+<p>The Meta Conversions API Gateway is a server-side solution developed by Meta (formerly Facebook) that allows businesses to send web events, such as customer interactions and purchase data, directly from their servers to Meta’s platforms, bypassing traditional browser-based tracking methods like the Facebook Pixel.</p>
+
+<p>This gateway acts as an intermediary that collects, processes, and securely transmits event data from your website or app to Meta. Unlike client-side tracking, which relies on cookies and browser signals, the Conversions API Gateway ensures that the data reaches Meta even if a user has disabled cookies, uses ad blockers, or is affected by browser privacy restrictions. It can be deployed using cloud servers or via Meta’s own infrastructure, allowing for streamlined integration with minimal technical overhead.</p>
+
+<p>Technically, the Meta Conversions API Gateway is open-source technology, which means that any company can deploy it within their own infrastructure rather than relying solely on Meta’s servers. Meta provides the gateway as a containerized application, making it compatible with common cloud platforms or on-premises servers. This setup allows businesses to maintain full control over the data flow, security, and compliance while still sending conversion events to Meta. The gateway is designed to handle high volumes of server-to-server event traffic efficiently.</p>
+
+<h3 id="the-conversions-api-gateway-gwconversionsapigatewaycom-and-capig-eventsjs-script">The Conversions API Gateway gw.conversionsapigateway.com and capig-events.js script</h3>
+
+<p>The Conversions API Gateway (<code class="language-plaintext highlighter-rouge">gw.conversionsapigateway.com</code>) is Meta’s own hosted deployment of the gateway application. We decided to test against Meta’s gateway directly, since any vulnerability would affect Meta-owned properties immediately.</p>
+
+<p>To support conversion event collection and processing, the gateway serves a JavaScript file named <code class="language-plaintext highlighter-rouge">capig-events.js</code>, located at:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://gw.conversionsapigateway.com/sdk/&lt;pixel_id&gt;/capig-events.js
+</code></pre></div></div>
+
+<p>Within Meta’s infrastructure, this script is not manually embedded by developers. Instead, it is automatically loaded by Meta’s <code class="language-plaintext highlighter-rouge">fbq</code> client-side JavaScript module. As a result, it executes on:</p>
+
+<ul>
+  <li>www.meta.com</li>
+  <li>business.facebook.com</li>
+  <li>developers.facebook.com</li>
+  <li>Various third-party customer websites</li>
+</ul>
+
+<p>Any vulnerability in this script therefore inherits the privilege of whatever site includes it.</p>
+
+<hr />
+
+<h2 id="bug-1-trusting-eventorigin-and-turning-it-into-a-script-loader">Bug #1: Trusting event.origin and Turning It Into a Script Loader</h2>
+
+<p>The first issue exists entirely on the client side, inside <code class="language-plaintext highlighter-rouge">capig-events.js</code>. It only triggers under a specific condition: when the page has an opener window.</p>
+
+<p>If <code class="language-plaintext highlighter-rouge">window.opener</code> is present, the script registers a <code class="language-plaintext highlighter-rouge">message</code> event listener to receive configuration data for IWL.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">window</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">message</span><span class="dl">"</span><span class="p">,</span> <span class="nf">function </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">data</span> <span class="o">=</span> <span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">;</span>
+
+    <span class="k">if </span><span class="p">(</span>
+        <span class="o">!</span><span class="nx">localStorage</span><span class="p">.</span><span class="nf">getItem</span><span class="p">(</span><span class="dl">"</span><span class="s2">AHP_IWL_CONFIG_STORAGE_KEY</span><span class="dl">"</span><span class="p">)</span> <span class="o">&amp;&amp;</span>
+        <span class="o">!</span><span class="nx">localStorage</span><span class="p">.</span><span class="nf">getItem</span><span class="p">(</span><span class="dl">"</span><span class="s2">FACEBOOK_IWL_CONFIG_STORAGE_KEY</span><span class="dl">"</span><span class="p">)</span> <span class="o">&amp;&amp;</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">msg_type</span> <span class="o">===</span> <span class="dl">"</span><span class="s2">IWL_BOOTSTRAP</span><span class="dl">"</span>
+    <span class="p">)</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nf">checkInList</span><span class="p">(</span><span class="nx">g</span><span class="p">.</span><span class="nx">pixels</span><span class="p">,</span> <span class="nx">data</span><span class="p">.</span><span class="nx">pixel_id</span><span class="p">)</span> <span class="o">!==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">localStorage</span><span class="p">.</span><span class="nf">setItem</span><span class="p">(</span><span class="dl">"</span><span class="s2">AHP_IWL_CONFIG_STORAGE_KEY</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+                <span class="na">pixelID</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">pixel_id</span><span class="p">,</span>
+                <span class="na">host</span><span class="p">:</span> <span class="nx">event</span><span class="p">.</span><span class="nx">origin</span><span class="p">,</span>
+                <span class="na">sessionStartTime</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">session_start_time</span>
+            <span class="p">});</span>
+            <span class="nf">startIWL</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>This is where the first trust boundary is crossed.</p>
+
+<p>When a message with type <code class="language-plaintext highlighter-rouge">IWL_BOOTSTRAP</code> is received, the script checks that the provided <code class="language-plaintext highlighter-rouge">pixel_id</code> exists in an internal list. What it does <strong>not</strong> check is where the message came from.</p>
+
+<p>Instead of validating <code class="language-plaintext highlighter-rouge">event.origin</code> against an allowlist, the script stores it and treats it as a trusted host.</p>
+
+<p>Later, during initialization, this stored origin is used to dynamically load another JavaScript file:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;origin&gt;/sdk/&lt;pixel_id&gt;/iwl.js
+</code></pre></div></div>
+
+<p>At this point, the vulnerability becomes clear.
+The attacker cannot control the path, but they fully control the origin. If they can make the browser accept a script from that origin, they gain arbitrary JavaScript execution in the context of the embedding site.</p>
+
+<p>This is a classic example of a dangerous pattern:<br />
+<strong>taking unvalidated origin data from <code class="language-plaintext highlighter-rouge">postMessage</code> and turning it into code execution</strong>.</p>
+
+<hr />
+
+<h3 id="why-this-is-not-immediately-trivial-csp-and-coop">Why This Is Not Immediately Trivial? CSP and COOP</h3>
+
+<p>On paper, Content Security Policy (CSP) and Cross-Origin-Opener-Policy (COOP) appear to limit the impact.</p>
+
+<p>On <code class="language-plaintext highlighter-rouge">www.meta.com</code>, CSP does not allow arbitrary external scripts.<br />
+Additionally, most pages deploy:</p>
+
+<div class="language-http highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">Cross-Origin-Opener-Policy: same-origin-allow-popups
+</span></code></pre></div></div>
+
+<p>This prevents simple opener-based exploitation.</p>
+
+<p>However, security is not evaluated on a single page or a single policy.<br />
+It is evaluated across <em>all</em> contexts where the code runs.</p>
+
+<hr />
+
+<h4 id="csp-bypass">CSP Bypass</h4>
+
+<p>In logged-out states, certain Meta pages (notably under <code class="language-plaintext highlighter-rouge">/help/</code>) relax CSP to include third-party analytics providers such as:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">*.THIRD-PARTY.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">*.THIRD-PARTY.net</code></li>
+</ul>
+
+<p>At that point, the attack surface expands.<br />
+A subdomain takeover, XSS, or file upload on any CSP-allowed third-party domain would be sufficient to host an attacker script capable of sending the required message to trigger the exploit.</p>
+
+<hr />
+
+<h4 id="cross-origin-opener-policy-same-origin-allow-popups-bypass">Cross-Origin-Opener-Policy: same-origin-allow-popups Bypass</h4>
+
+<p>When executed inside Facebook’s Android WebView, <code class="language-plaintext highlighter-rouge">window.name</code> reuse combined with <code class="language-plaintext highlighter-rouge">window.open()</code> allowed attacker-controlled pages to regain access to the opener.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">window</span><span class="p">.</span><span class="nx">name</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">;</span>
+<span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="nx">target</span><span class="p">,</span> <span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>This bypass only ensured that the current window would have an <strong>opener</strong> object; however, the window becomes its own opener.<br />
+In this case, the cross-window message must be sent from one of the page’s iframes.</p>
+
+<hr />
+
+<h4 id="iframe-hijacking">Iframe Hijacking</h4>
+
+<p>Likely, <code class="language-plaintext highlighter-rouge">meta.com</code> was loading third-party content such as ads or social plugins hosted in iframes.<br />
+We exploited a vulnerability in one of these third-party components to completely hijack the iframe and later send the malicious <code class="language-plaintext highlighter-rouge">postMessage</code> from there.</p>
+
+<p>This allowed the attacker-controlled iframe to interact with the parent window (<code class="language-plaintext highlighter-rouge">www.meta.com</code>) and deliver a malicious <code class="language-plaintext highlighter-rouge">postMessage</code> payload, which eventually triggered the loading of the JavaScript file <code class="language-plaintext highlighter-rouge">iwl.js</code> from a CSP-allowed third-party website.</p>
+
+<h2 id="attack-flow-summary">Attack Flow Summary</h2>
+
+<p>First, we visit the attacker’s website while logged into Facebook, inside the Facebook App WebView:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0) User opens a url inside Facebook application
+
+1) The script running on the attacker’s website executes the opener bypass
+   and redirects the user to https://www.meta.com/help/
+
+2) On the help page, the script inside the hijacked iframe redirects to a
+   (*.THIRD-PARTY.com) page (allowed by Meta’s CSP). The script there sends the
+   IWL_BOOTSTRAP postMessage to the parent window (www.meta.com)
+
+3) At the same time, the attacker-controlled (*.THIRD-PARTY.com) hosts a
+   JavaScript file named iwl.js under /sdk/{pixel_id}/iwl.js containing
+   the XSS payload
+
+4) The script is loaded from the attacker-controlled third-party website
+   and executed in the context of www.meta.com
+</code></pre></div></div>
+
+<h2 id="impact">Impact</h2>
+
+<p>Since this occurs in a logged-out state on <code class="language-plaintext highlighter-rouge">www.meta.com</code> and inside the Facebook App WebView, the objective is to escalate this into <strong>Facebook account takeover</strong>.</p>
+
+<p>We identified an endpoint on <code class="language-plaintext highlighter-rouge">www.facebook.com</code> that whitelists <code class="language-plaintext highlighter-rouge">www.meta.com</code> in CORS.<br />
+From there, it becomes possible to issue authenticated requests, read CSRF tokens from responses, and perform privileged actions such as changing the account’s email or phone number—ultimately leading to full account takeover.</p>
+
+<hr />
+
+<h2 id="bug-2-stored-javascript-injection-in-the-gateway-backend">Bug #2: Stored JavaScript Injection in the Gateway Backend</h2>
+
+<p>The second vulnerability exists on the server side and is arguably more severe.</p>
+
+<p>After reporting the first bug, I went to take a look at the code. It then came to my attention what the <code class="language-plaintext highlighter-rouge">iwl.js</code> JavaScript file that this code attempts to load actually does.</p>
+
+<p>If the file is successfully loaded from <code class="language-plaintext highlighter-rouge">https://gw.conversionsapigateway.com</code>,<br />
+the <code class="language-plaintext highlighter-rouge">www.meta.com</code> website displays a graphical tool that looks like this:</p>
+
+<p><img src="/assets/uploads/2025/01/ui.png" alt="capig-iwl-ui" /></p>
+
+<p>While experimenting with the tool, I noticed that it allows creating IWL event rules and parameters.<br />
+Whenever a new event match rule is added, the tool triggers a POST request.</p>
+
+<p>For example, when a rule is created to match the load event of a page named <code class="language-plaintext highlighter-rouge">testing_page</code>, the request returns a <strong>200 OK</strong> status code along with a response body containing the ID of the newly created rule. The same behavior occurs for POST requests used to add other IWL rules.</p>
+
+<p><img src="/assets/uploads/2025/01/postrequest.png" alt="capig-iwl-post" /></p>
+
+<p>After adding the rules, nothing appeared to happen, at least initially.</p>
+
+<p>At this point, I decided to review the source code, which was publicly available on Amazon ECR.<br />
+After downloading it, I found hundreds of libraries packaged as JAR files. To make the code easier to inspect, I extracted all of them and began searching for keywords from the earlier requests.</p>
+
+<p>That’s when I discovered that the logic responsible for generating parts of <code class="language-plaintext highlighter-rouge">capig-events.js</code> resides in:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Lib: pipeline-sources-common-1.0.0-SNAPSHOT.jar</code></li>
+  <li><code class="language-plaintext highlighter-rouge">AHPixelIWLParametersPlugin.java</code></li>
+</ul>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">StringsKt</span><span class="o">.</span><span class="na">trimIndent</span><span class="o">(</span><span class="s">"\n cbq.loadPlugin(\"ESTRuleEvaluator\");cbq.optIn(\""</span> <span class="o">+</span> <span class="k">this</span><span class="o">.</span><span class="na">pixelID</span> <span class="o">+</span> <span class="s">"\", \"ESTRuleEvaluator\");\n "</span><span class="o">));</span>
+
+<span class="nc">StringsKt</span><span class="o">.</span><span class="na">trimIndent</span><span class="o">(</span><span class="s">"\n cbq.config.set(\""</span> <span class="o">+</span> <span class="k">this</span><span class="o">.</span><span class="na">pixelID</span> <span class="o">+</span> <span class="s">"\",\"IWLParameters\",{params: "</span> <span class="o">+</span> <span class="n">paramsCommand</span> <span class="o">+</span> <span class="s">"});\n "</span><span class="o">);</span>
+<span class="k">return</span> <span class="n">extractorCommand</span><span class="o">;</span>
+
+<span class="k">if</span> <span class="o">(</span><span class="n">extractorConfig</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+<span class="nc">String</span> <span class="n">extractorConfigSerilized</span> <span class="o">=</span> <span class="n">serilizeExtractorConfig</span><span class="o">(</span><span class="n">extractorConfig</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"{\"domain_uri\":\""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">domainUrl</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",\"event_type\": \""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">eventType</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",\"extractor_config\": "</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">extractorConfigSerilized</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">",\"extractor_type\": \""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">extractorType</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",\"id\": \""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">id</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",},"</span><span class="o">);</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>Essentially, the code takes JSON keys supplied in the request and constructs a JavaScript string by appending corresponding values.</p>
+
+<p>The calls to <code class="language-plaintext highlighter-rouge">cbq.loadPlugin</code> and <code class="language-plaintext highlighter-rouge">cbq.config.set</code> were familiar — the same functions are used extensively throughout Meta Pixel and Signals JavaScript files. This raised suspicion that the generated output would eventually be appended to the initial <code class="language-plaintext highlighter-rouge">capig-events.js</code> script.</p>
+
+<p>Revisiting <code class="language-plaintext highlighter-rouge">capig-events.js</code> confirmed this. At the end of the file, the dynamically appended code was present:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">cbq</span><span class="p">.</span><span class="nx">config</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">"</span><span class="s2">1701366827799</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">IWLParameters</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">params</span><span class="p">:</span> <span class="p">{</span>
+        <span class="dl">"</span><span class="s2">domain_uri</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">https://www.meta.com</span><span class="dl">"</span><span class="p">,</span>
+        <span class="dl">"</span><span class="s2">event_type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">AddToCart</span><span class="dl">"</span><span class="p">,</span>
+        <span class="dl">"</span><span class="s2">extractor_config</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">...</span><span class="dl">"</span><span class="p">,</span>
+        <span class="dl">"</span><span class="s2">extractor_type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">CSS</span><span class="dl">"</span><span class="p">,</span>
+        <span class="dl">"</span><span class="s2">id</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">id</span><span class="dl">"</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>This confirmed that the script is <strong>not static</strong>, but dynamically changes depending on which rules or plugins are configured.</p>
+
+<hr />
+
+<p>Returning to the backend code, a major issue becomes obvious, it concatenates strings using <strong>user-controlled values</strong> without any escaping.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="o">(</span><span class="n">extractorConfig</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+<span class="nc">String</span> <span class="n">extractorConfigSerilized</span> <span class="o">=</span> <span class="n">serilizeExtractorConfig</span><span class="o">(</span><span class="n">extractorConfig</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"{\"domain_uri\":\""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">domainUrl</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",\"event_type\": \""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">eventType</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",\"extractor_config\": "</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">extractorConfigSerilized</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">",\"extractor_type\": \""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">extractorType</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",\"id\": \""</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">id</span><span class="o">);</span>
+<span class="n">paramsCommand</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="s">"\",},"</span><span class="o">);</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>Essentially, the code takes JSON keys supplied in the request and constructs a JavaScript string by appending corresponding values.</p>
+
+<p>Exploitation is trivial — injecting a single quote is sufficient to break out of the string context and begin injecting arbitrary JavaScript. By injecting characters such as <code class="language-plaintext highlighter-rouge">"]}</code>, attacker-controlled JavaScript is appended to the generated output. The result is a <strong>stored XSS</strong> vulnerability inside <code class="language-plaintext highlighter-rouge">capig-events.js</code> itself.Once injected, the payload is served to <strong>every user</strong> who loads the script — including visitors to Meta-owned domains.</p>
+
+<p><img src="/assets/uploads/2025/01/poc.png" alt="capig-iwl-poc" /></p>
+
+<hr />
+
+<h2 id="why-this-matters-more-than-a-typical-xss">Why This Matters More Than a Typical XSS</h2>
+
+<p>This is not a single-page issue. It is a <strong>supply-chain vulnerability</strong> in a shared analytics tool. Attackers does not need to trick users into clicking links. They can cause JavaScript execution:</p>
+
+<ul>
+  <li>On <code class="language-plaintext highlighter-rouge">www.meta.com</code>, <code class="language-plaintext highlighter-rouge">www.facebook.com</code>, <code class="language-plaintext highlighter-rouge">business.facebook.com</code>, and internal Meta domains</li>
+  <li>Inside authenticated browser sessions</li>
+  <li>At massive scale</li>
+</ul>
+
+<p>Once code execution is achieved on a Meta surface, further escalation becomes possible — including interaction with Facebook endpoints, account takeover, and even remote code execution if employees in internal Meta domains were targeted.</p>
+
+<p>Even without immediate ATO, the silent execution of attacker-controlled JavaScript in a globally deployed analytics script is already catastrophic.</p>
+
+<h2 id="beyond-meta">Beyond Meta</h2>
+
+<p>Because the Conversions API Gateway is open source, any company deploying it and loading <code class="language-plaintext highlighter-rouge">capig-events.js</code> from their own gateway may also be vulnerable.</p>
+
+<p>Our research indicates that the application has been deployed <strong>at least 100 million times</strong>.<br />
+Organizations hosting the script on their own domains are therefore exposed to the same stored XSS vulnerability</p>
+
+<p><img src="/assets/uploads/2025/01/deployments.png" alt="conversions-api-gateway-deployments" /></p>
+
+<h2 id="closing-thoughts">Closing Thoughts</h2>
+
+<p>Both vulnerabilities described here stem from the same root problem: treating analytics infrastructure as “low risk” code.</p>
+
+<p>When JavaScript is shared across products, domains, and customers, it becomes part of the platform’s <strong>trusted computing base</strong>.</p>
+
+<p>At that point, origin validation, strict CSP design, and safe code generation are no longer optional, they are existential requirements.</p>
+
+<p>The Conversions API Gateway demonstrates how small, localized trust decisions can cascade into platform-wide security failures.</p>
+
+<h2 id="timeline">Timeline</h2>
+
+<p>Nov 22, 2024 — Bug #2 reported</p>
+
+<p>Nov 22, 2024 — Bug #2 Acknowledged by Facebook</p>
+
+<p>Nov 24, 2024 — Bug #1 reported</p>
+
+<p>Nov 25, 2024 — Bug #1 Acknowledged by Facebook</p>
+
+<p>Dec 11, 2024 — Bug #1 Fixed by Facebook</p>
+
+<p>Dec 24, 2024 — <strong>$62,500</strong> bounty awarded by Meta for Bug #1</p>
+
+<p>Jan 3, 2025 — Bug #2 Fixed by Facebook</p>
+
+<p>Jan 16, 2025 — <strong>$250,000</strong> bounty awarded by Meta for Bug #2</p>
+
+  </div><a class="u-url" href="/uncategorized/2025/01/13/capig-xss.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

@@ -13,11 +13,11 @@
 <meta property="og:url" content="http://localhost:4000/uncategorized/2019/02/12/export-facebook-audience-network-reports-of-any-business.html" />
 <meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2019-02-12T14:34:08+01:00" />
+<meta property="article:published_time" content="2019-02-12T15:34:08+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Export Facebook audience network reports of any business" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-02-12T14:34:08+01:00","datePublished":"2019-02-12T14:34:08+01:00","description":"This bug could be exploited by a malicious user to generate reports about audience network for any Facebook business. Description When making the API call to generate the report, there is no checking if the user making the request has permissions in the selcted business [Checking access_token permissions]. According to https://developers.facebook.com/docs/audience-network/reporting-api , the API request should be like this&nbsp;https://graph.facebook.com//&lt;APP_ID|BUSINESS_ID|PROPERTY_ID&gt;/adnetworkanalytics/ with selected metrics, filters and breakdowns.I noticed that if i provide an id of an app/property which i don&#39;t have permissions in , i get an error but if i provide a BUSINESS_ID i get a valid response with a query_id to be used later to get the data.&lt;/p&gt; Demonstration First the attacker sends a POST request to : https://graph.facebook.com/v3.0/{TARGET_BUSINESS}/adnetworkanalytics?access_token={ATTACKER_ACCESS_TOKEN}","headline":"Export Facebook audience network reports of any business","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2019/02/12/export-facebook-audience-network-reports-of-any-business.html"},"url":"http://localhost:4000/uncategorized/2019/02/12/export-facebook-audience-network-reports-of-any-business.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-02-12T15:34:08+02:00","datePublished":"2019-02-12T15:34:08+02:00","description":"This bug could be exploited by a malicious user to generate reports about audience network for any Facebook business. Description When making the API call to generate the report, there is no checking if the user making the request has permissions in the selcted business [Checking access_token permissions]. According to https://developers.facebook.com/docs/audience-network/reporting-api , the API request should be like this&nbsp;https://graph.facebook.com//&lt;APP_ID|BUSINESS_ID|PROPERTY_ID&gt;/adnetworkanalytics/ with selected metrics, filters and breakdowns.I noticed that if i provide an id of an app/property which i don&#39;t have permissions in , i get an error but if i provide a BUSINESS_ID i get a valid response with a query_id to be used later to get the data.&lt;/p&gt; Demonstration First the attacker sends a POST request to : https://graph.facebook.com/v3.0/{TARGET_BUSINESS}/adnetworkanalytics?access_token={ATTACKER_ACCESS_TOKEN}","headline":"Export Facebook audience network reports of any business","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2019/02/12/export-facebook-audience-network-reports-of-any-business.html"},"url":"http://localhost:4000/uncategorized/2019/02/12/export-facebook-audience-network-reports-of-any-business.html"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
 <body><header class="site-header" role="banner">
@@ -42,7 +42,7 @@
   <header class="post-header">
     <h1 class="post-title p-name" itemprop="name headline">Export Facebook audience network reports of any business</h1>
     <p class="post-meta">
-      <time class="dt-published" datetime="2019-02-12T14:34:08+01:00" itemprop="datePublished">Feb 12, 2019
+      <time class="dt-published" datetime="2019-02-12T15:34:08+02:00" itemprop="datePublished">Feb 12, 2019
       </time></p>
   </header>
 
