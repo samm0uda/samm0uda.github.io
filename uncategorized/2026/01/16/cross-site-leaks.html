@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Multiple cross-site leaks disclosing Facebook users in third-party websites | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Multiple cross-site leaks disclosing Facebook users in third-party websites" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces." />
+<meta property="og:description" content="Introduction This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces." />
+<link rel="canonical" href="https://ysamm.com/uncategorized/2026/01/16/cross-site-leaks.html" />
+<meta property="og:url" content="https://ysamm.com/uncategorized/2026/01/16/cross-site-leaks.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-01-16T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Multiple cross-site leaks disclosing Facebook users in third-party websites" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2026-01-16T00:00:00+02:00","datePublished":"2026-01-16T00:00:00+02:00","description":"Introduction This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.","headline":"Multiple cross-site leaks disclosing Facebook users in third-party websites","mainEntityOfPage":{"@type":"WebPage","@id":"https://ysamm.com/uncategorized/2026/01/16/cross-site-leaks.html"},"url":"https://ysamm.com/uncategorized/2026/01/16/cross-site-leaks.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://ysamm.com/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Multiple cross-site leaks disclosing Facebook users in third-party websites</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2026-01-16T00:00:00+02:00" itemprop="datePublished">Jan 16, 2026
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.</p>
+
+<p>While none of these bugs directly grant account control on their own, they enable precise user identification, de-anonymization, and cross-context fingerprinting. When chained with other vulnerabilities, these primitives significantly lower the bar for targeted attacks, account takeover, and employee profiling.</p>
+
+<p>Each section below documents a distinct class of XS-Leak, grouped by affected surface and leakage primitive.</p>
+
+<h3 id="xs-leak-identifying-the-current-workplace--meta-work-user">XS-Leak: Identifying the Current Workplace / Meta Work User</h3>
+<hr />
+<p><br />
+This issue allows distinguishing the currently logged-in Workplace user by abusing response-type differences in Zoom callback endpoints.</p>
+
+<p>By loading the following endpoints in a script context:</p>
+
+<ul>
+  <li>https://work-api.workplace.com/zoom/callback/</li>
+  <li>https://work-api.facebook.com/zoom/callback/</li>
+</ul>
+
+<p>and supplying both <code class="language-plaintext highlighter-rouge">__cid</code> (community ID) and <code class="language-plaintext highlighter-rouge">__user</code> parameters, an attacker can brute-force the user ID within a known Workplace community.</p>
+
+<p>When <code class="language-plaintext highlighter-rouge">__user</code> is correct for the active session, the endpoint responds with an empty page and <code class="language-plaintext highlighter-rouge">Content-Type: text/html</code>, which can be loaded successfully via a script tag.<br />
+When incorrect, the response is <code class="language-plaintext highlighter-rouge">application/json</code>, triggering CORB and blocking script execution.</p>
+
+<p>By observing <code class="language-plaintext highlighter-rouge">onload</code> versus <code class="language-plaintext highlighter-rouge">onerror</code> events, the attacker can reliably determine whether a given user ID matches the currently logged-in Workplace user.</p>
+
+<p>This works across all major browsers for Workplace. For Facebook users, the same technique only works inside the Facebook app webview, where <code class="language-plaintext highlighter-rouge">__cid</code> is not properly validated.</p>
+
+<h3 id="xs-leak-identifying-the-active-facebook-user-or-page">XS-Leak: Identifying the Active Facebook User or Page</h3>
+<hr />
+<p><br />
+This issue abuses Facebook plugin behavior to distinguish the currently logged-in Facebook user or page.</p>
+
+<p>By embedding a Facebook plugin (such as the Like plugin) inside an iframe and supplying both <code class="language-plaintext highlighter-rouge">__a=1</code> and a candidate <code class="language-plaintext highlighter-rouge">__user</code> ID, different behavior is observed depending on whether the supplied ID matches the active session.</p>
+
+<p>If the <code class="language-plaintext highlighter-rouge">__user</code> value is correct, the iframe successfully loads and sends a postMessage to the parent window.   If incorrect, the response includes <code class="language-plaintext highlighter-rouge">X-Frame-Options: deny</code>, preventing the iframe from loading.</p>
+
+<p>This distinction allows brute-forcing the active user or page ID by observing postMessage events versus timeouts.</p>
+
+<p>This technique works for both personal profiles and pages and does not require any special permissions beyond the victim being logged into Facebook.</p>
+
+<h2 id="poc">PoC</h2>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;iframe</span> <span class="na">width=</span><span class="s">"0"</span> <span class="na">height=</span><span class="s">"0"</span> <span class="na">id=</span><span class="s">"test"</span> <span class="na">src=</span><span class="s">""</span><span class="nt">&gt;&lt;/iframe&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="kd">const</span> <span class="nx">tryUserID</span> <span class="o">=</span> <span class="p">(</span><span class="nx">USER_ID</span><span class="p">)</span> <span class="o">=&gt;</span><span class="p">{</span>
+        <span class="nx">frm_id</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
+        <span class="nx">frm_id</span><span class="p">.</span><span class="nx">src</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/plugins/like.php?app_id=&amp;container_width=0&amp;href=https%3A%2F%2Fysamm.com&amp;layout=button_count&amp;locale=fr_FR&amp;sdk=joey&amp;send=true&amp;show_faces=false&amp;width=450&amp;channel_url=https%3A%2F%2Fstaticxx.facebook.com%2Fx%2Fconnect%2Fxd_arbiter%2F%3Fversion%3D46%23cb%3Dcc%26is_canvas%3Dtrue%26origin%3Dhttps%253A%252F%252Fysamm.com%26relation%3Dopener&amp;__a=1&amp;__user=</span><span class="p">${</span><span class="nc">Number</span><span class="p">(</span><span class="nx">USER_ID</span><span class="p">)}</span><span class="s2">`</span><span class="p">;</span>
+        <span class="k">return</span> <span class="k">new</span> <span class="nc">Promise</span><span class="p">((</span><span class="nx">resolve</span><span class="p">)</span><span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="nx">onmessage</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nf">resolve</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+            <span class="nf">resolve</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span>
+        <span class="p">},</span><span class="mi">2000</span><span class="p">)</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+<span class="nx">onhashchange</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">user_id</span> <span class="o">=</span> <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">#</span><span class="dl">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="nf">tryUserID</span><span class="p">(</span><span class="nx">user_id</span><span class="p">).</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span><span class="o">=&gt;</span><span class="p">{</span><span class="nf">alert</span><span class="p">(</span><span class="nx">e</span><span class="p">)})</span>
+<span class="p">}</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<h3 id="xs-leak-facebook-user-id-leakage-via-signalsiwljs">XS-Leak: Facebook User ID Leakage via signals/iwl.js</h3>
+<hr />
+<p><br />
+This issue enables direct leakage of the Facebook user ID on third-party origins.</p>
+
+<p>The endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/signals/iwl.js?pixel_id=PIXEL_ID</code> returns a JavaScript payload intended for internal Meta Pixel testing, which includes the current Facebook user ID.</p>
+
+<p>Although the value is scoped inside a function, it can be extracted by abusing JavaScript prototype manipulation prior to loading the script.</p>
+
+<p>Unlike other XS-Leaks, this technique does not rely on brute-forcing or timing side channels and yields an exact user identifier.</p>
+
+<p>This allows full de-anonymization of Facebook users on third-party websites, enabling cross-site tracking, targeted attacks, and precise user correlation.</p>
+
+<h4 id="poc-1">PoC</h4>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+<span class="nt">&lt;script&gt;</span><span class="nb">Function</span><span class="p">.</span><span class="nx">prototype</span><span class="p">.</span><span class="k">default</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="o">=&gt;</span><span class="p">{</span>
+<span class="k">if </span><span class="p">(</span><span class="k">typeof</span> <span class="nx">e</span><span class="p">.</span><span class="nx">userID</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">string</span><span class="dl">"</span><span class="p">)</span> <span class="nf">alert</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">userID</span><span class="p">)</span>
+<span class="p">};</span><span class="nb">Function</span><span class="p">.</span><span class="nx">prototype</span><span class="p">.</span><span class="nx">__esModule</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span><span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script </span><span class="na">src=</span><span class="s">"https://www.facebook.com/signals/iwl.js?pixel_id=PIXEL_ID"</span><span class="nt">&gt;&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p>The endpoint is only accessible when the user is logged in, making login state detection implicit as well.</p>
+
+<h3 id="xs-leak-employee-and-login-state-identification-across-meta-properties">XS-Leak: Employee and Login State Identification Across Meta Properties</h3>
+<hr />
+<p><br />
+This class of issues enables leaking multiple attributes about the current attacker website visitor, including:</p>
+
+<ul>
+  <li>Whether the user is logged into Facebook</li>
+  <li>Whether the user is logged into Workplace</li>
+  <li>Whether the user is logged into work.meta.com</li>
+  <li>Whether the user is a Meta employee</li>
+  <li>The employee’s Unix username or email prefix</li>
+</ul>
+
+<p>The attack relies on probing Meta-owned subdomains such as:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">sb.facebook.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">sb.internalfb.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">my-od.facebook.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">my-od.internalfb.com</code></li>
+</ul>
+
+<p>Employee identifiers are reflected in subdomains (for example, www.username.sb.facebook.com).<br />
+By brute-forcing subdomains and observing load behavior, an attacker can identify the currently logged-in employee.</p>
+
+<p>For example:</p>
+
+<p><code class="language-plaintext highlighter-rouge">https://www.testemployee.sb.facebook.com/random</code>
+<code class="language-plaintext highlighter-rouge">https://www.testemployee.sb.internalfb.com/random</code></p>
+
+<p>This can be combined with XS-Leak primitives (script loading, iframe behavior, or CORB differences) to confirm employee identity.</p>
+
+<p>Additionally, because the <code class="language-plaintext highlighter-rouge">/signals/iwl.js</code> endpoint only loads when logged in, it can be used as a login-state oracle and combined with other probes to build a detailed fingerprint of the user across Meta platforms.</p>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+Collectively, these XS-Leaks enable:</p>
+
+<ul>
+  <li>Identification of logged-in Facebook, Workplace, and Meta Work users</li>
+  <li>Precise user ID de-anonymization on third-party websites</li>
+  <li>Detection of Meta employees and internal account attributes</li>
+  <li>Cross-platform fingerprinting without user interaction</li>
+</ul>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Dec 29, 2024 — Bug #1 reported</p>
+
+<p>Dec 27, 2024 — Bug #2 reported</p>
+
+<p>Dec 5, 2024 — Bug #3 reported</p>
+
+<p>Dec 29, 2024 — Bug #4 reported</p>
+
+<p>Dec 29, 2024 — Bugs Acknowledged by Meta</p>
+
+<p>May 22, 2025 — Bugs fixed by Meta</p>
+
+<p>Feb 12, 2025 — <strong>$2,400</strong> bounty awarded by Meta for Bug #1</p>
+
+<p>Feb 12, 2025 — <strong>$2,400</strong> bounty awarded by Meta for Bug #2</p>
+
+<p>Feb 12, 2025 — <strong>$3,600</strong> bounty awarded by Meta for Bug #3</p>
+
+<p>Feb 12, 2025 — Meta marked Bug #4 as informative</p>
+
+  </div><a class="u-url" href="/uncategorized/2026/01/16/cross-site-leaks.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li><li><a class="u-email" href="mailto:ysamm@proton.me">ysamm@proton.me</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

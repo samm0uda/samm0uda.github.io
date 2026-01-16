@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Leaking Meta FXAuth Token leading to 2 click Account Takeover | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Leaking Meta FXAuth Token leading to 2 click Account Takeover" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation." />
+<meta property="og:description" content="Introduction FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation." />
+<link rel="canonical" href="https://ysamm.com/uncategorized/2026/01/16/leaking-fxauth-token.html" />
+<meta property="og:url" content="https://ysamm.com/uncategorized/2026/01/16/leaking-fxauth-token.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-01-16T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Leaking Meta FXAuth Token leading to 2 click Account Takeover" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2026-01-16T00:00:00+02:00","datePublished":"2026-01-16T00:00:00+02:00","description":"Introduction FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.","headline":"Leaking Meta FXAuth Token leading to 2 click Account Takeover","mainEntityOfPage":{"@type":"WebPage","@id":"https://ysamm.com/uncategorized/2026/01/16/leaking-fxauth-token.html"},"url":"https://ysamm.com/uncategorized/2026/01/16/leaking-fxauth-token.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://ysamm.com/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Leaking Meta FXAuth Token leading to 2 click Account Takeover</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2026-01-16T00:00:00+02:00" itemprop="datePublished">Jan 16, 2026
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.</p>
+
+<p>This write-up documents a redirect flaw in the FXAuth flow that allows the token to be exfiltrated and reused, enabling account linking and takeover in as little as two interactions.</p>
+
+<h1 id="description">Description</h1>
+<hr />
+<h3 id="the-fxauth-redirect-model">The FXAuth Redirect Model</h3>
+
+<p>The FXAuth flow endpoint for <code class="language-plaintext highlighter-rouge">meta.com</code> is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
+</code></pre></div></div>
+
+<p>This endpoint asks for user approval and redirects the browser back to the requestor website ( facebook.com/ instagram.com) with siged <code class="language-plaintext highlighter-rouge">token</code> and <code class="language-plaintext highlighter-rouge">blob</code>. It accepts multiple parameters, including <code class="language-plaintext highlighter-rouge">base_uri</code>:</p>
+
+<p>Originally, <code class="language-plaintext highlighter-rouge">base_uri</code> accepted any arbitrary domain, making token exfiltration trivial. Meta fixed this by restricting the parameter to Meta-owned domains.</p>
+
+<p>However, the fix relied on an incorrect assumption: that restricting the domain alone is sufficient if the attacker cannot directly control the redirect path.</p>
+
+<h3 id="why-the-fix-was-insufficient">Why the Fix Was Insufficient</h3>
+
+<p>While <code class="language-plaintext highlighter-rouge">base_uri</code> was restricted to Meta domains, not all Meta domains are safe.</p>
+
+<p>Legacy surfaces still exist where attackers can execute JavaScript under controlled paths. One such surface is <code class="language-plaintext highlighter-rouge">apps.facebook.com</code>.</p>
+
+<p>Developers can register applications with a namespace that becomes part of the URL:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/{app_namespace}
+</code></pre></div></div>
+
+<p>If the attacker owns an application (notably older ones), they regain the ability to read parameters from the URL despite not controlling the base path directly.</p>
+
+<p>This effectively reintroduces the original vulnerability under a different trust boundary.</p>
+
+<h3 id="the-exploitable-fxauth-flow">The Exploitable FXAuth Flow</h3>
+
+<p>A valid FXAuth request accepts:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">app_id</code> belonging to Facebook or Instagram</li>
+  <li><code class="language-plaintext highlighter-rouge">flow</code> such as <code class="language-plaintext highlighter-rouge">frlcomet</code> or <code class="language-plaintext highlighter-rouge">frlreauth</code></li>
+  <li><code class="language-plaintext highlighter-rouge">etoken</code> generated earlier in an Accounts Center flow</li>
+  <li><code class="language-plaintext highlighter-rouge">next</code> restricted to internal paths</li>
+  <li><code class="language-plaintext highlighter-rouge">base_uri</code> restricted to Meta-owned domains</li>
+</ul>
+
+<p>Example:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
+?app_id=2220391788200892
+<span class="err">&amp;</span>etoken=ATTACKER_ETOKEN
+<span class="err">&amp;</span>next=%2Fpersonal_info
+<span class="err">&amp;</span>flow=frlcomet
+<span class="err">&amp;</span>base_uri=https://apps.facebook.com
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">etoken</code> can be obtained by initiating a standard Accounts Center linking flow:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/?auth_flow=frl_linking&amp;background_page=%2F
+</code></pre></div></div>
+
+<h3 id="token-exfiltration">Token Exfiltration</h3>
+
+<p>When the victim opens the crafted FXAuth URL and approves the request, the browser is redirected to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/personal_info
+</code></pre></div></div>
+
+<p>The redirect includes sensitive parameters such as <code class="language-plaintext highlighter-rouge">blob</code> and <code class="language-plaintext highlighter-rouge">token</code>.</p>
+
+<p>Because the attacker controls execution within their application namespace <code class="language-plaintext highlighter-rouge">personal_info</code>, both values can be trivially extracted. At this point, the attacker holds a valid FXAuth token bound to the victim account, he can finalize privileged flows without further user confirmation:</p>
+
+<p>Account linking:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/
+?auth_flow=frl_linking
+&amp;background_page=%2F
+&amp;blob=BLOB
+&amp;token=TOKEN
+</code></pre></div></div>
+
+<p>Action re-authentication bypass:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/profiles/VICTIM_PROFILE_ID/name/
+?auth_flow=reauth
+&amp;blob=BLOB
+&amp;token=TOKEN
+</code></pre></div></div>
+
+<p>These flows normally require explicit confirmation. Possession of a valid FXAuth token bypasses that requirement entirely.</p>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+This vulnerability enables linking attacker-controlled accounts, bypassing Accounts Center confirmations, and achieving full account takeover with minimal interaction.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Jun 27, 2023 — Bug reported</p>
+
+<p>Jun 28, 2023 — Bug Acknowledged by Meta</p>
+
+<p>Jun 29, 2023 — <strong>$32,500</strong> bounty awarded by Meta</p>
+
+<p>Dec 29, 2024 Bypass repoted</p>
+
+<p>Apr 28, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>
+
+<p>Jan 15, 2026 — Bug fixed by Meta</p>
+
+  </div><a class="u-url" href="/uncategorized/2026/01/16/leaking-fxauth-token.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li><li><a class="u-email" href="mailto:ysamm@proton.me">ysamm@proton.me</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
