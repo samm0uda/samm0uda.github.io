@@ -342,7 +342,7 @@ It was found that Facebook has this feature, it’s called <code class="language
 
 <h3 id="vi---predicting-mathrandom-seed">VI - Predicting Math.random() seed</h3>
 
-<p>To avoid making this write-up any longer than it already is, I highly recommend watching PwnFunction’s excellent <a href="&quot;https://www.youtube.com/watch?v=-h_rj2-HP2E">video</a> on this topic. You should also check out his <a href="&quot;https://github.com/PwnFunction/v8-randomness-predictor/blob/main/main.py&quot;">Github repository</a> and the accompanying resources.</p>
+<p>To avoid making this write-up any longer than it already is, I highly recommend watching PwnFunction’s excellent <a href="https://www.youtube.com/watch?v=-h_rj2-HP2E">video</a> on this topic. You should also check out his <a href="https://github.com/PwnFunction/v8-randomness-predictor/blob/main/main.py">Github repository</a> and the accompanying resources.</p>
 
 <p>My attack did not introduce anything fundamentally new; the only required change was a slight modification to the solver so it would still work even when the supplied seeds were not consecutive. Because the iframe reinitialization trick resets everything, each iframe window name we obtain is actually two steps behind the previous one:</p>
 
